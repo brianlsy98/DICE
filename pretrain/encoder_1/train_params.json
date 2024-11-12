@@ -1,0 +1,6 @@
+{
+    "loss": "mse",
+    "epochs": 1000,
+    "batch_size": 2048,
+    "device": "cuda"
+}

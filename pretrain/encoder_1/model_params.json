@@ -1,0 +1,7 @@
+{
+    "project_name": "dc_vpred",
+    "architecture": "2-layer-gat",
+    "lr": 1e-5,
+    "hidden_dim": 256,
+    "layer_num": 7
+}

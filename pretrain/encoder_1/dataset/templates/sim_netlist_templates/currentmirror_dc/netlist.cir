@@ -1,0 +1,35 @@
+* Current Mirror
+* DC simulation
+
+
+* Netlist
+
+.include (MOS_SPEC)
+
+MN0 Vg    Vg VSS VSS nmos W=(MN0W) L=(MN0L)
+MN1 Vout1 Vg VSS VSS nmos W=(MN1W) L=(MN1L)
+MN2 Vout2 Vg VSS VSS nmos W=(MN2W) L=(MN2L)
+MN3 Vout3 Vg VSS VSS nmos W=(MN3W) L=(MN3L)
+
+R1  Vout1 VDD (R1)
+R2  Vout2 VDD (R2)
+R3  Vout3 VDD (R3)
+
+
+
+* Simulation
+
+.option TEMP=(TEMP)
+
+Vpower  VDD  0  (VDD)
+Vgnd    VSS  0  (VSS)
+Vinput  Vg   0
+
+.dc Vinput (Vin_min) (Vin_max) (Vin_step)
+
+.control
+    run
+    wrdata (OUT_PATH) (OUT_DATA)
+.endc
+
+.END

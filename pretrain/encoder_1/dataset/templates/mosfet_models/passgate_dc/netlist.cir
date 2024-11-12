@@ -1,0 +1,35 @@
+* Pass Gate
+* DC simulation
+
+
+* Netlist
+
+.include (MOS_SPEC)
+
+MN0 Vpass1 VDD Vpass2 VSS nmos W=(MN0W) L=(MN0L)
+
+MP0 Vpass1 VSS Vpass2 VDD pmos W=(MP0W) L=(MP0L)
+
+R0  Vin     Vpass1 (R0)
+R1  Vpass2  Vout   (R1)
+C0  Vpass1  VSS    (C0)
+C1  Vout    VSS    (C1)
+
+
+
+* Simulation
+
+.option TEMP=(TEMP)
+
+Vpower  VDD  0  (VDD)
+Vgnd    VSS  0  (VSS)
+Vinput  Vin  0
+
+.dc Vinput (Vin_min) (Vin_max) (Vin_step)
+
+.control
+    run
+    wrdata (OUT_PATH) (OUT_DATA)
+.endc
+
+.END

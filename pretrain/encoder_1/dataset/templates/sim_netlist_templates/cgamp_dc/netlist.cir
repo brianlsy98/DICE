@@ -1,0 +1,28 @@
+* Common Gate Amplifier
+* DC simulation
+
+
+* Netlist
+
+.include (MOS_SPEC)
+
+MN0  Vout  VDD  Vin   VSS  nmos  W=(MN0W)  L=(MN0L)
+R0   Vout  VDD  (R0)
+
+
+* Simulation
+
+.option TEMP=(TEMP)
+
+Vpower  VDD  0  (VDD)
+Vgnd    VSS  0  (VSS)
+Vinput  Vin  0
+
+.dc Vinput (Vin_min) (Vin_max) (Vin_step)
+
+.control
+    run
+    wrdata (OUT_PATH) (OUT_DATA)
+.endc
+
+.END

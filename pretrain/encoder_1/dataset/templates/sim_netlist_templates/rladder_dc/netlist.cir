@@ -1,0 +1,29 @@
+* Resistor Ladder
+* DC simulation
+
+
+* Netlist
+
+.include (MOS_SPEC)
+
+R0  VDD   Vout   (R0)
+R1  Vin   Vout   (R1)
+R2  VSS   Vout   (R2)
+
+
+* Simulation
+
+.option TEMP=(TEMP)
+
+Vpower  VDD  0  (VDD)
+Vgnd    VSS  0  (VSS)
+Vinput  Vin  0
+
+.dc Vinput (Vin_min) (Vin_max) (Vin_step)
+
+.control
+    run
+    wrdata (OUT_PATH) (OUT_DATA)
+.endc
+
+.END

@@ -1,0 +1,4 @@
+{
+    "iterations": 1000,
+    "device": "cuda"
+}

@@ -1,0 +1,7 @@
+__pycache__
+netlist_*.cir
+sim_*.cir
+*.csv
+*.txt
+*.pt
+wandb

@@ -1,0 +1,29 @@
+* Source Follower
+* DC simulation
+
+
+* Netlist
+
+.include (MOS_SPEC)
+
+MN0  VDD  Vin   Vout  VSS  nmos W=(MN0W)u L=(MN0L)u
+R0   VSS  Vout  (R0)
+
+
+
+* Simulation
+
+.option TEMP=(TEMP)
+
+Vpower  VDD  0  (VDD)
+Vgnd    VSS  0  (VSS)
+Vinput  Vin  0
+
+.dc Vinput (Vin_min) (Vin_max) (Vin_step)
+
+.control
+    run
+    wrdata (OUT_PATH) (OUT_DATA)
+.endc
+
+.END
