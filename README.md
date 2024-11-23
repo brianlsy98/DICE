@@ -1,2 +1,2 @@
-# ICE-D
-Integrated Circuits Encoder on the Device level
+# DICE
+Device-level Integrated Circuits Encoder trained with Graph Contrastive Learning
