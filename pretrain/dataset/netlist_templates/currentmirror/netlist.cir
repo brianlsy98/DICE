@@ -1,0 +1,8 @@
+* Current Mirror
+
+.subckt currentmirror gnd vdd vin vout
+MP0  vg    vin   vdd  vdd  pmos  W='MP0W'  L='MP0L'
+MN0  vg    vg    gnd  gnd  nmos  W='MN0W'  L='MN0L'
+MN1  vout  vg    gnd  gnd  nmos  W='MN1W'  L='MN1L'
+R0   vout  vdd  'R0'
+.ends currentmirror

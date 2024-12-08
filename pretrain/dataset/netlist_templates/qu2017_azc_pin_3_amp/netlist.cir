@@ -1,0 +1,48 @@
+* Qu2017_AZC_Pin_3 Amplifier
+
+.subckt qu2017_azc_pin_3_amp gnd vdd vinn vinp vout
+
+* PMOS Transistors
+MP0   net057 net055 vdd vdd pmos W='MP0W'  L='MP0L'
+MP1   net055 net055 vdd vdd pmos W='MP1W'  L='MP1L'
+MP2   net078 VB1     vdd vdd pmos W='MP2W' L='MP2L'
+MP3   VOUT   net050  vdd vdd pmos W='MP3W' L='MP3L'
+MP4   net049 VB1     vdd vdd pmos W='MP4W' L='MP4L'
+MP5   net094 net050  vdd vdd pmos W='MP5W' L='MP5L'
+MP6   net050 VOUTN   vdd vdd pmos W='MP6W' L='MP6L'
+MP7   VOUTN  VOUTN   vdd vdd pmos W='MP7W' L='MP7L'
+MP8   net063 VINP    net019 net019 pmos W='MP8W'  L='MP8L'
+MP9   DM_2   VINN    net019 net019 pmos W='MP9W'  L='MP9L'
+MP10  net019 VB1     vdd vdd pmos W='MP10W' L='MP10L'
+MP11  VB4    VB1     vdd vdd pmos W='MP11W' L='MP11L'
+MP12  VB1    VB1     vdd vdd pmos W='MP12W' L='MP12L'
+
+* NMOS Transistors
+MN0   net049 net057 gnd gnd nmos W='MN0W'  L='MN0L'
+MN1   net055 net094 gnd gnd nmos W='MN1W'  L='MN1L'
+MN2   net077 DM_2   gnd gnd nmos W='MN2W'  L='MN2L'
+MN3   net082 net063 gnd gnd nmos W='MN3W'  L='MN3L'
+MN4   VOUT   net049  gnd gnd nmos W='MN4W'  L='MN4L'
+MN5   net094 net051 gnd gnd nmos W='MN5W'  L='MN5L'
+MN6   net057 net043 gnd gnd nmos W='MN6W'  L='MN6L'
+MN7   DM_2   VB4    gnd gnd nmos W='MN7W'  L='MN7L'
+MN8   VOUTN  net077 DM_2 gnd nmos W='MN8W'  L='MN8L'
+MN9   net063 VB4    gnd gnd nmos W='MN9W'  L='MN9L'
+MN10  net050 net082 net063 gnd nmos W='MN10W' L='MN10L'
+MN11  VB4    VB4    gnd gnd nmos W='MN11W' L='MN11L'
+
+* Current Source
+I0    VB1    gnd 'CURRENT_0_BIAS'
+
+* Capacitors
+C2    net043 gnd 'CAPACITOR_2'
+C1    net051 gnd 'CAPACITOR_1'
+C0    net063 vout 'CAPACITOR_0'
+
+* Resistors
+R3    net057 net043 'RESISTOR_3'
+R2    net057 net051 'RESISTOR_2'
+R1    net078 net082 'RESISTOR_1'
+R0    net078 net077 'RESISTOR_0'
+
+.ends qu2017_azc_pin_3_amp

@@ -1,0 +1,43 @@
+* Peng_TCFC_Pin_3 Amplifier
+
+.subckt peng_tcfc_pin_3_amp gnd vdd vinn vinp vout
+
+MP0   net10   VB2     net049 vdd pmos W='MP0W'    L='MP0L'
+MP1   VOUT    VOUTP   vdd    vdd pmos W='MP1W'    L='MP1L'
+MP2   net049  VB1     vdd    vdd pmos W='MP2W'    L='MP2L'
+MP3   net043  VOUTP   vdd    vdd pmos W='MP3W'    L='MP3L'
+MP4   VB1     VB2     net2   vdd pmos W='MP4W'    L='MP4L'
+MP5   VB2     VB2     vdd    vdd pmos W='MP5W'    L='MP5L'
+MP6   VOUTP   VOUTN   vdd    vdd pmos W='MP6W'    L='MP6L'
+MP7   VOUTN   VOUTN   vdd    vdd pmos W='MP7W'    L='MP7L'
+MP8   net063  VINP    net31  net31 pmos W='MP8W'  L='MP8L'
+MP9   DM_2    VINN    net31  net31 pmos W='MP9W'  L='MP9L'
+MP10  net31   VB1     vdd    vdd pmos W='MP10W'   L='MP10L'
+MP11  VB3     VB2     net8   vdd pmos W='MP11W'   L='MP11L'
+MP12  net8    VB1     vdd    vdd pmos W='MP12W'   L='MP12L'
+MP13  net7    VB2     net6   vdd pmos W='MP13W'   L='MP13L'
+MP14  net6    VB1     vdd    vdd pmos W='MP14W'   L='MP14L'
+MP15  VB4     VB2     net3   vdd pmos W='MP15W'   L='MP15L'
+MP16  net3    VB1     vdd    vdd pmos W='MP16W'   L='MP16L'
+MP17  net2    VB1     vdd    vdd pmos W='MP17W'   L='MP17L'
+
+MN0   VOUT    net10   gnd    gnd nmos W='MN0W'    L='MN0L'
+MN1   net043  net043  gnd    gnd nmos W='MN1W'    L='MN1L'
+MN2   net10   net043  gnd    gnd nmos W='MN2W'    L='MN2L'
+MN3   DM_2    VB4     gnd    gnd nmos W='MN3W'    L='MN3L'
+MN4   VOUTN   VB3     DM_2   gnd nmos W='MN4W'    L='MN4L'
+MN5   net063  VB4     gnd    gnd nmos W='MN5W'    L='MN5L'
+MN6   VOUTP   VB3     net063 gnd nmos W='MN6W'    L='MN6L'
+MN7   net54   VB4     gnd    gnd nmos W='MN7W'    L='MN7L'
+MN8   VB3     VB3     gnd    gnd nmos W='MN8W'    L='MN8L'
+MN9   VB4     VB3     net54  gnd nmos W='MN9W'    L='MN9L'
+MN10  net56   VB4     gnd    gnd nmos W='MN10W'   L='MN10L'
+MN11  net7    VB3     net56  gnd nmos W='MN11W'   L='MN11L'
+MN12  net9    VB4     gnd    gnd nmos W='MN12W'   L='MN12L'
+MN13  VB2     VB3     net9   gnd nmos W='MN13W'   L='MN13L'
+
+I0    VB1     gnd     'CURRENT_0_BIAS'
+C1    net049  VOUT    'CAPACITOR_1'
+C0    VOUTP   VOUT    'CAPACITOR_0'
+
+.ends peng_tcfc_pin_3_amp

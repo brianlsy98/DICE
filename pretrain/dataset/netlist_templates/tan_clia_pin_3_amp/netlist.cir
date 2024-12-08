@@ -1,0 +1,42 @@
+* Tan_CLIA_Pin_3 Amplifier
+
+.subckt tan_clia_pin_3_amp gnd vdd vinn vinp vout
+
+* PMOS Transistors
+MP0   net5   dm_1  vdd vdd pmos W='MOSFET_0_8_W_BIASCM_PMOS*1' L='MOSFET_0_8_L_BIASCM_PMOS'
+MP1   net3   net050 vdd vdd pmos W='MOSFET_70_1_W_gm21_PMOS*1' L='MOSFET_70_1_L_gm21_PMOS'
+MP2   dm_1   dm_1  vdd vdd pmos W='MOSFET_0_8_W_BIASCM_PMOS*1' L='MOSFET_0_8_L_BIASCM_PMOS'
+MP3   vout   net050 vdd vdd pmos W='MOSFET_68_1_W_gmf_PMOS*1'  L='MOSFET_68_1_L_gmf_PMOS'
+MP4   net050 voutn vdd vdd pmos W='MOSFET_5_2_W_LOAD1_PMOS*1'  L='MOSFET_5_2_L_LOAD1_PMOS'
+MP5   voutn  voutn vdd vdd pmos W='MOSFET_5_2_W_LOAD1_PMOS*1'  L='MOSFET_5_2_L_LOAD1_PMOS'
+MP6   net8   vinp  net31 net31 pmos W='MOSFET_8_2_W_gm1_PMOS*1' L='MOSFET_8_2_L_gm1_PMOS'
+MP7   dm_2   vinn  net31 net31 pmos W='MOSFET_8_2_W_gm1_PMOS*1' L='MOSFET_8_2_L_gm1_PMOS'
+MP8   net31  net1  vdd vdd pmos W='MOSFET_0_8_W_BIASCM_PMOS*1' L='MOSFET_0_8_L_BIASCM_PMOS'
+MP9   vb3    net1  vdd vdd pmos W='MOSFET_0_8_W_BIASCM_PMOS*1' L='MOSFET_0_8_L_BIASCM_PMOS'
+MP10  vb4    net1  vdd vdd pmos W='MOSFET_0_8_W_BIASCM_PMOS*1' L='MOSFET_0_8_L_BIASCM_PMOS'
+MP11  net1   net1  vdd vdd pmos W='MOSFET_0_8_W_BIASCM_PMOS*1' L='MOSFET_0_8_L_BIASCM_PMOS'
+
+* NMOS Transistors
+MN0   net5   net3 gnd gnd nmos W='MOSFET_71_1_W_gm23_NMOS*1' L='MOSFET_71_1_L_gm23_NMOS'
+MN1   net3   vb4 gnd gnd nmos W='MOSFET_17_7_W_BIASCM_NMOS*1' L='MOSFET_17_7_L_BIASCM_NMOS'
+MN2   net3   net3 gnd gnd nmos W='MOSFET_71_1_W_gm23_NMOS*1' L='MOSFET_71_1_L_gm23_NMOS'
+MN3   dm_2   vb4 gnd gnd nmos W='MOSFET_17_7_W_BIASCM_NMOS*1' L='MOSFET_17_7_L_BIASCM_NMOS'
+MN4   voutn  vb3 dm_2 gnd nmos W='MOSFET_17_7_W_BIASCM_NMOS*1' L='MOSFET_17_7_L_BIASCM_NMOS'
+MN5   net8   vb4 gnd gnd nmos W='MOSFET_17_7_W_BIASCM_NMOS*1' L='MOSFET_17_7_L_BIASCM_NMOS'
+MN6   net050 vb3 net8 gnd nmos W='MOSFET_17_7_W_BIASCM_NMOS*1' L='MOSFET_17_7_L_BIASCM_NMOS'
+MN7   net7   vb4 gnd gnd nmos W='MOSFET_17_7_W_BIASCM_NMOS*1' L='MOSFET_17_7_L_BIASCM_NMOS'
+MN8   vb4    vb3 net6 gnd nmos W='MOSFET_17_7_W_BIASCM_NMOS*1' L='MOSFET_17_7_L_BIASCM_NMOS'
+MN9   dm_1   vb3 net7 gnd nmos W='MOSFET_17_7_W_BIASCM_NMOS*1' L='MOSFET_17_7_L_BIASCM_NMOS'
+MN10  net6   vb4 gnd gnd nmos W='MOSFET_17_7_W_BIASCM_NMOS*1' L='MOSFET_17_7_L_BIASCM_NMOS'
+MN11  vout   net5 gnd gnd nmos W='MOSFET_69_1_W_gm3_NMOS*1' L='MOSFET_69_1_L_gm3_NMOS'
+MN12  vb3    vb3 gnd gnd nmos W='MOSFET_17_7_W_BIASCM_NMOS*1' L='MOSFET_17_7_L_BIASCM_NMOS'
+
+* Current Source
+I0 net1 gnd 'CURRENT_0_BIAS'
+
+* Capacitors and Resistor
+C1 net8 vout 'CAPACITOR_1'
+C0 net2 gnd 'CAPACITOR_0'
+R0 net5 net2 'RESISTOR_0'
+
+.ends tan_clia_pin_3_amp

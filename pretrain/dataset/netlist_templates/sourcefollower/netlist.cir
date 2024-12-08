@@ -1,0 +1,9 @@
+* Source Follower
+
+.subckt sourcefollower gnd vdd vin vout
+MN0 mn0d  vin  vo   gnd  nmos  W='MN0W'  L='MN0L'
+R0  mn0d  vdd  'R0'
+R1  vo    gnd  'R1'
+R2  vo    vout 'R2'
+C0  vout  gnd  'C0'
+.ends sourcefollower

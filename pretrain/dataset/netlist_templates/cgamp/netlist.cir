@@ -1,0 +1,9 @@
+* Common Gate Amplifier
+
+.subckt cgamp gnd vdd vin vout
+MN0  vout  vdd    mn0s  gnd  nmos  W='MN0W'  L='MN0L'
+R0   vin   mn0s  'R0'
+R1   vout  vdd   'R1'
+R2   vout  vout  'R2'
+C0   vout  gnd   'C0'
+.ends cgamp

@@ -1,0 +1,19 @@
+{
+    "model": {
+        "project_name": "dice_pretraining",
+        "lr": 3e-5,
+        "hidden_dim": 32,
+        "gnn_layer_num": 2
+    },
+    "train": {
+        "loss": "mse",
+        "tau": 0.05,
+        "epochs": 100,
+        "batch_size": 128,
+        "device": "cuda"
+    },
+    "test": {
+        "iterations": 1000,
+        "device": "cuda"
+    }
+}

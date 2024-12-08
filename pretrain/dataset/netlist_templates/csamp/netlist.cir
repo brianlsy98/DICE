@@ -1,0 +1,9 @@
+* Common Source Amplifier
+
+.subckt csamp gnd vdd vin vout
+MN0  vo    vin    mn0s  gnd  nmos  W='MN0W'  L='MN0L'
+R0   gnd   mn0s   'R0'
+R1   vo    vdd    'R1'
+R2   vo    vout   'R2'
+C0   vout  gnd    'C0'
+.ends csamp

@@ -1,0 +1,11 @@
+* Resistor Ladder
+
+.subckt resistorladder gnd vdd vin vout
+R0  vin   v1    'R0'
+R1  v1    v2    'R1'
+R2  v2    vout  'R2'
+R3  vout  v4    'R3'
+R4  v4    v5    'R4'
+R5  v5    v6    'R5'
+R6  v6    gnd   'R6'
+.ends resistorladder

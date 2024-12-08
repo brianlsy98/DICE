@@ -1,0 +1,50 @@
+* Song_DACFC_Pin_3 Amplifier
+
+.subckt song_dacfc_pin_3_amp gnd vdd vinn vinp vout
+
+* PMOS Transistors
+MP0   net3   net70 vdd vdd pmos W='MP0W'  L='MP0L'
+MP1   net2   net70 vdd vdd pmos W='MP1W'  L='MP1L'
+MP2   net70  dm_1  net2 vdd pmos W='MP2W'  L='MP2L'
+MP3   voutn  dm_1  net3 vdd pmos W='MP3W'  L='MP3L'
+MP4   net4   dm_1  net050 vdd pmos W='MP4W' L='MP4L'
+MP5   voutn  dm_1  net5 vdd pmos W='MP5W'  L='MP5L'
+MP6   net1   net013 vdd vdd pmos W='MP6W'  L='MP6L'
+MP7   net049 vinp   net1 net1 pmos W='MP7W' L='MP7L'
+MP8   net043 vinn   net1 net1 pmos W='MP8W' L='MP8L'
+MP9   vout   net4   vdd vdd pmos W='MP9W'  L='MP9L'
+MP10  net049 voutn  vdd vdd pmos W='MP10W' L='MP10L'
+MP11  net043 net4   vdd vdd pmos W='MP11W' L='MP11L'
+MP12  net050 voutn  vdd vdd pmos W='MP12W' L='MP12L'
+MP13  net5   voutn  vdd vdd pmos W='MP13W' L='MP13L'
+MP14  net063 vinp   net31 net31 pmos W='MP14W' L='MP14L'
+MP15  dm_2   vinn   net31 net31 pmos W='MP15W' L='MP15L'
+MP16  net31  net013 vdd vdd pmos W='MP16W' L='MP16L'
+MP17  vb3    net013 vdd vdd pmos W='MP17W' L='MP17L'
+MP18  dm_1   dm_1   vdd vdd pmos W='MP18W' L='MP18L'
+MP19  vb4    net013 vdd vdd pmos W='MP19W' L='MP19L'
+MP20  net013 net013 vdd vdd pmos W='MP20W' L='MP20L'
+
+* NMOS Transistors
+MN0   voutn vb3 net85 gnd nmos W='MN0W'  L='MN0L'
+MN1   net70 vb3 net69 gnd nmos W='MN1W'  L='MN1L'
+MN2   net69 vb4 gnd gnd nmos W='MN2W'    L='MN2L'
+MN3   net85 vb4 gnd gnd nmos W='MN3W'    L='MN3L'
+MN4   vout  net049 gnd gnd nmos W='MN4W' L='MN4L'
+MN5   net049 net043 gnd gnd nmos W='MN5W' L='MN5L'
+MN6   net043 net043 gnd gnd nmos W='MN6W' L='MN6L'
+MN7   dm_2  vb4 gnd gnd nmos W='MN7W'    L='MN7L'
+MN8   voutn vb3 dm_2 gnd nmos W='MN8W'    L='MN8L'
+MN9   net063 vb4 gnd gnd nmos W='MN9W'    L='MN9L'
+MN10  net4 vb3 net063 gnd nmos W='MN10W'  L='MN10L'
+MN11  net54 vb4 gnd gnd nmos W='MN11W'    L='MN11L'
+MN12  vb3 vb3 gnd gnd nmos W='MN12W'      L='MN12L'
+MN13  vb4 vb3 net54 gnd nmos W='MN13W'    L='MN13L'
+MN14  net56 vb4 gnd gnd nmos W='MN14W'    L='MN14L'
+MN15  dm_1 vb3 net56 gnd nmos W='MN15W'   L='MN15L'
+
+* Capacitors
+C2 net4 gnd 'CAPACITOR_1'
+C0 vout net70 'CAPACITOR_0'
+
+.ends song_dacfc_pin_3_amp

@@ -1,139 +1,119 @@
-import re
 import numpy as np
-import torch
 
 
+def parse_netlist(filename):
 
-def convert_to_number(value_str):
-    """
-    Convert a string with unit suffix to a numeric value.
-    Supports: 'p' (pico), 'n' (nano), 'u' (micro), 'm' (milli), 'k' (kilo), 'M' (mega)
-    """
-    # Define the conversion factors for each unit suffix
-    unit_multipliers = {
-        'p': 1e-12,  # pico
-        'n': 1e-9,   # nano
-        'u': 1e-6,   # micro
-        'm': 1e-3,   # milli
-        'k': 1e3,    # kilo
-        'M': 1e6     # mega
-    }
-    
-    # Extract the numeric part and the unit suffix
-    if value_str[-1] in unit_multipliers:
-        number = float(value_str[:-1])  # Get the numeric part
-        multiplier = unit_multipliers[value_str[-1]]  # Get the corresponding multiplier
-        return number * multiplier
-    else:
-        # If there's no unit suffix, return the number directly
-        return float(value_str)
+    node_types = {'gnd'            : 0,
+                  'vdd'            : 1,
+                  'voltage_net'    : 2,
+                  'current_source' : 3,
+                  'nmos'           : 4,
+                  'pmos'           : 5,
+                  'resistor'       : 6,
+                  'capacitor'      : 7,
+                  'inductor'       : 8}
+    edge_types = {'current_net'    : 0,
+                  'v2ng'           : 1,
+                  'v2pg'           : 2,
+                  'v2nb'           : 3,
+                  'v2pb'           : 4}
 
+    node_names = []
+    node_features = []
+    node_labels = []
+    node_dict = {}  # Maps node names to indices
 
+    edge_indices = [[], []]
+    edge_features = []
+    edge_labels = []
 
-def parse_sim_netlist(filename):
-    input_nodes = set()     # To store input nodes
-    nodes = set()           # To store in/out nodes
-    edges = {}              # To store edges with edge types and features (W, L)
-    graph_level_attr = {}
+    def add_node(name, type_index):
+        if name not in node_dict:
+            idx = len(node_names)
+            node_dict[name] = idx
+            node_names.append(name)
+            if name == 'gnd':
+                feature = np.zeros(len(node_types))
+                feature[0] = 1
+                node_labels.append(0)
+            elif name == 'vdd':
+                feature = np.zeros(len(node_types))
+                feature[1] = 1
+                node_labels.append(1)
+            else:
+                feature = np.zeros(len(node_types))
+                feature[type_index] = 1
+                node_labels.append(type_index)
+            node_features.append(feature)
+        return node_dict[name]
 
-    # Read the netlist file
+    def add_edge(src_idx, tgt_idx, type_index):
+        edge_indices[0].append(src_idx)
+        edge_indices[1].append(tgt_idx)
+        feature = np.zeros(len(edge_types))
+        feature[type_index] = 1
+        edge_labels.append(type_index)
+        edge_features.append(feature)
+
+    circuit_name = ''
     with open(filename, 'r') as file:
         for line in file:
-            
             line = line.strip()
             parts = line.split()
-
-            ####### Graph Level Attributes #######
-            if line.startswith('.include'):
-                including_filename = parts[1]
-                
-                # subcircuit
-                if including_filename[-4:] == ".cir":
-                    ns, es, glas = parse_sim_netlist(including_filename)
-                    nodes.update(ns)
-                    for e in es: edges.append(e)
-                    for k, v in glas: graph_level_attr[k] = v
-                # technology file
-                else:
-                    graph_level_attr['TECH'] = including_filename
-                    
-            elif line.startswith('.option'):
-                option_parts = parts[1].split("=")
-                graph_level_attr[option_parts[0]] = option_parts[1]                
-            ####### Graph Level Attributes #######
-
-
-            ####### Graph Structure & Edges #######
-            ## MOSFET
-            elif line.startswith('M'):
-                mosfet_name = parts[0]
-                drain_node, gate_node, source_node, body_node = parts[1:5]
-                mosfet_type = parts[5]
-                params = ' '.join(parts[5:])  # Get the rest of the line containing W, L
-                w_match = re.search(r'W=(\d+\.?\d*[munp]?)', params)
-                l_match = re.search(r'L=(\d+\.?\d*[munp]?)', params)
-                W = convert_to_number(w_match.group(1)) if w_match else None  # Extract width (W)
-                L = convert_to_number(l_match.group(1)) if l_match else None  # Extract length (L)
-                # Node Update
-                nodes.update([drain_node, gate_node, source_node, body_node])
-                # Edge Update
-                edges[(drain_node, mosfet_type, source_node)] = [gate_node, body_node, W/L]
-            ## Resistor
-            elif line.startswith('R'):
-                resistor_name, node_1, node_2, value = parts[:4]
-                nodes.update([node_1, node_2])
-                edges[(node_1, 'R', node_2)] = [convert_to_number(value)]
-            ## Inductor
-            elif line.startswith('L'):
-                inductor_name, node_1, node_2, value = parts[:4]
-                nodes.update([node_1, node_2])
-                edges[(node_1, 'L', node_2)] = [convert_to_number(value)]
-            ## Capacitor
-            elif line.startswith('C'):
-                capacitor_name, node_1, node_2, value = parts[:4]
-                nodes.update([node_1, node_2])
-                edges[(node_1, 'C', node_2)] = [convert_to_number(value)]
-            ####### Graph Structure & Edges #######
-
-
-            ####### Input Nodes #######
-            elif line.startswith('V'):
-                input_nodes.update([parts[1]])
-            ####### Input Nodes #######
-
-
-    return list(nodes), list(input_nodes), list(nodes-input_nodes), edges, graph_level_attr
-
-
-
-def parse_sim_result(filename):
-
-    data_dict = {}
-
-    with open(filename, 'r') as file:
-        # Read the header line and extract variable names
-        header_line = file.readline().strip()
-        column_names = header_line.split()
-        
-        # Use regex to extract variable names inside v()
-        variable_names = [re.search(r'v\((.*?)\)', col).group(1) for col in column_names]
-        
-        # Initialize the dictionary with variable names
-        for var in variable_names:
-            data_dict[var] = []
-        
-        # Read and parse the data lines
-        for line in file:
-            # Skip empty lines
-            if not line.strip():
+            if not parts:
                 continue
-            # Split the line into values and convert to floats
-            values = [float(val) for val in line.strip().split()]
-            
-            # Assign values to the corresponding variable in the dictionary
-            for var, val in zip(variable_names, values):
-                data_dict[var].append(val)
 
-    return data_dict
+            # Circuit Name
+            if line.startswith('.subckt'):
+                circuit_name = parts[1]
 
+            # MOSFETs
+            elif line.startswith('MN') or line.startswith('MP'):
+                mosfet_name, drain, gate, source, body = parts[:5]
+                device_type = 'nmos' if line.startswith('MN') else 'pmos'
 
+                # Add nodes
+                mosfet_idx = add_node(mosfet_name, node_types[device_type])
+                drain_idx = add_node(drain, node_types['voltage_net'])
+                gate_idx = add_node(gate, node_types['voltage_net'])
+                source_idx = add_node(source, node_types['voltage_net'])
+                body_idx = add_node(body, node_types['voltage_net'])
+
+                # Add edges
+                add_edge(drain_idx, mosfet_idx, edge_types['current_net'])
+                add_edge(mosfet_idx, drain_idx, edge_types['current_net'])
+                add_edge(source_idx, mosfet_idx, edge_types['current_net'])
+                add_edge(mosfet_idx, source_idx, edge_types['current_net'])
+
+                if device_type == 'nmos':
+                    add_edge(gate_idx, mosfet_idx, edge_types['v2ng'])
+                    add_edge(body_idx, mosfet_idx, edge_types['v2nb'])
+                else:
+                    add_edge(gate_idx, mosfet_idx, edge_types['v2pg'])
+                    add_edge(body_idx, mosfet_idx, edge_types['v2pb'])
+
+            # Passive Components
+            elif line.startswith(('I', 'R', 'C', 'L')):
+                comp_name, node1, node2 = parts[:3]
+                comp_type = {'I': 'current_source', 'R': 'resistor',
+                             'C': 'capacitor', 'L': 'inductor'}[line[0]]
+                # Add nodes
+                comp_idx = add_node(comp_name, node_types[comp_type])
+                node1_idx = add_node(node1, node_types['voltage_net'])
+                node2_idx = add_node(node2, node_types['voltage_net'])
+
+                # Add edges (bidirectional)
+                add_edge(node1_idx, comp_idx, edge_types['current_net'])
+                add_edge(node2_idx, comp_idx, edge_types['current_net'])
+                add_edge(comp_idx, node1_idx, edge_types['current_net'])
+                add_edge(comp_idx, node2_idx, edge_types['current_net'])
+
+    # Convert to NumPy arrays
+    node_features = np.array(node_features)
+    node_labels = np.array(node_labels)
+    edge_indices = np.array(edge_indices)
+    edge_features = np.array(edge_features)
+    edge_labels = np.array(edge_labels)
+
+    return circuit_name, node_names, node_features, node_labels,\
+            edge_indices, edge_features, edge_labels

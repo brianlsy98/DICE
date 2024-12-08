@@ -1,0 +1,31 @@
+.subckt basic_ldo gnd vdd vinn vout vfb vinp ib
+MP0 ib ib vdd vdd pmos L='MP0L' W='MP0W'
+MP1 vb4 ib vdd vdd pmos L='MP1L' W='MP1W'
+MP2 dm_1 ib vdd vdd pmos L='MP2L' W='MP2W'
+MP3 vb3 ib vdd vdd pmos L='MP3L' W='MP3W'
+MP4 net20 ib vdd vdd pmos L='MP4L' W='MP4W'                  
+MP5 voutn voutn vdd vdd pmos L='MP5L' W='MP5W'             
+MP6 net10 voutn vdd vdd pmos L='MP6L' W='MP6W'                           
+MP7 net7 ib vdd vdd pmos L='MP7L' W='MP7W'
+MP8 net1 ib vdd vdd pmos L='MP8L' W='MP8W'
+MP9 vout net1 vdd vdd pmos L='MP9L' W='MP9W'
+MP10 net12 net10 net1 net1 pmos L='MP10L' W='MP10W'
+MP11 dm_2 vinp net20 net20 pmos L='MP11L' W='MP11W'
+MP12 net106 vinn net20 net20 pmos L='MP12L' W='MP12W'
+
+MN0 vb3 vb3 gnd gnd nmos L='MN0L' W='MN0W'
+MN1 vb4 vb3 net28 gnd nmos L='MN1L' W='MN1W'
+MN2 dm_1 vb3 net31 gnd nmos L='MN2L' W='MN2W'                          
+MN3 voutn vb3 dm_2 gnd nmos L='MN3L' W='MN3W'       
+MN4 net10 vb3 net106 gnd nmos L='MN4L' W='MN4W'  
+MN5 net28 vb4 gnd gnd nmos L='MN5L' W='MN5W'
+MN6 net31 vb4 gnd gnd nmos L='MN6L' W='MN6W'           
+MN7 dm_2 vb4 gnd gnd nmos L='MN7L' W='MN7W'
+MN8 net106 vb4 gnd gnd nmos L='MN8L' W='MN8W'
+MN9 net12 net7 gnd gnd nmos L='MN9L' W='MN9W'
+MN10 net7 net7 gnd gnd nmos L='MN10L' W='MN10W'
+
+R0 vout vfb 300e3
+R1 vfb gnd 100e3
+C0 net106 vout 'CAPACITOR_0'
+.ends Basic_LDO
