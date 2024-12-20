@@ -1,0 +1,47 @@
+* DFF with NAND gates
+
+
+.subckt dff_nand gnd vdd data_in clk data_out data_out_b
+
+* Inverter
+* data_in -> data_in_b
+MP0 data_in_b data_in vdd vdd pmos W='MP0W' L='MP0L'
+MN0 data_in_b data_in gnd gnd nmos W='MN0W' L='MN0L'
+C0  data_in_b gnd 'C0'
+
+* NAND1
+* inputs: data_in, clk; output: nand1out
+MP1  nand1out  data_in    vdd vdd pmos W='MP1W' L='MP1L'
+MP2  nand1out  clk        vdd vdd pmos W='MP2W' L='MP2L'
+MN1  mn1d      data_in    gnd gnd nmos W='MN1W' L='MN1L'
+MN2  nand1out  clk        mn1d gnd nmos W='MN2W' L='MN2L'
+C1   nand1out  gnd 'C0'
+
+* NAND2
+* inputs: clk, data_in_b; output: nand2out
+MP3  nand2out  clk         vdd vdd pmos W='MP3W' L='MP3L'
+MP4  nand2out  data_in_b   vdd vdd pmos W='MP4W' L='MP4L'
+MN3  mn2d      clk         gnd gnd nmos W='MN3W' L='MN3L'
+MN4  nand2out  data_in_b   mn2d gnd nmos W='MN4W' L='MN4L'
+C2   nand2out  gnd 'C2'
+
+* NAND3
+* inputs: nand1out, data_out_b; output: data_out
+MP5  data_out  nand1out    vdd vdd pmos W='MP5W' L='MP5L'
+MP6  data_out  data_out_b  vdd vdd pmos W='MP6W' L='MP6L'
+MN5  mn5d      nand1out    gnd gnd nmos W='MN5W' L='MN5L'
+MN6  data_out  data_out_b  mn5d gnd nmos W='MN6W' L='MN6L'
+C3   data_out  gnd 'C3'
+
+* NAND4
+* inputs: data_out, nand2out; output: data_out_b
+MP7  data_out_b  data_out   vdd vdd pmos W='MP7W' L='MP7L'
+MP8  data_out_b  nand2out   vdd vdd pmos W='MP8W' L='MP8L'
+MN7  mn7d        data_out   gnd gnd nmos W='MN7W' L='MN7L'
+MN8  data_out_b  nand2out   mn7d gnd nmos W='MN8W' L='MN8L'
+C4   data_out_b  gnd 'C4'
+
+* coupling capacitor
+C5   data_out data_out_b 'C5'
+
+.ends dff_nand

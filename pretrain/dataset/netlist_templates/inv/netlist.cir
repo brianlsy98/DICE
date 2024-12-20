@@ -1,0 +1,7 @@
+* Inverter
+
+.subckt inv gnd vdd vin vout
+MP0  vout  vin  vdd  vdd  pmos  W='MP0W'  L='MP0L'
+MN0  vout  vin  gnd  gnd  nmos  W='MN0W'  L='MN0L'
+C0   vout  gnd  'C0'
+.ends inv

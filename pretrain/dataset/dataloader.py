@@ -13,6 +13,7 @@ class GraphData:
         """
         self.x = None             # Node features
         self.node_y = None        # Node labels
+        self.device_params = None # Device parameters (None when pretrining!!!)
         self.edge_index = None    # Edge indices
         self.edge_attr = None     # Edge attributes (optional)
         self.edge_y = None        # Edge labels (optional)
@@ -35,6 +36,15 @@ class GraphData:
         - y (Tensor): Node label tensor of shape (num_nodes, )
         """
         self.node_y = ny
+
+    def set_device_params(self, device_params):
+        """
+        Sets device parameters.
+
+        Parameters:
+        - device_params (Tensor): Device parameters tensor of shape (num_nodes, )
+        """
+        self.device_params = device_params
 
     def set_edge_attributes(self, edge_index, edge_attr=None):
         """
@@ -66,6 +76,11 @@ class GraphData:
         """
         for key, value in kwargs.items():
             self.graph_attrs[key] = value
+
+    def __repr__(self):
+        return f"GraphData(x={self.x}, node_y={self.node_y}, device_params={self.device_params}, "\
+               f"edge_index={self.edge_index}, edge_attr={self.edge_attr}, edge_y={self.edge_y}, "\
+               f"graph_attrs={self.graph_attrs})"
 
 
 ########################

@@ -1,0 +1,19 @@
+* starved_inv_delay_line
+
+.subckt starved_inv_delay_line gnd vdd vin vout
+* first stage
+MP0  vin_bar  vin     mp0s  vdd  pmos  W='MP0W'  L='MP0L'
+MN0  vin_bar  vin     mn0s  gnd  nmos  W='MN0W'  L='MN0L'
+MP1  mp0s     VCTRLP  vdd   vdd  pmos  W='MP1W'  L='MP1L'
+MN1  mn0s     VCTRLN  gnd   gnd  nmos  W='MN1W'  L='MN1L'
+* second stage
+MP2  vout  vin_bar  mp2s  vdd  pmos  W='MP2W'  L='MP2L'
+MN2  vout  vin_bar  mn2s  gnd  nmos  W='MN2W'  L='MN2L'
+MP3  mp2s  VCTRLP   vdd   vdd  pmos  W='MP3W'  L='MP3L'
+MN3  mn2s  VCTRLN   gnd   gnd  nmos  W='MN3W'  L='MN3L'
+* capacitor
+C0   vout  gnd  'C0'
+* vctrl
+VCTRLP VCTRLP 0 'VCTRLP'
+VCTRLN VCTRLN 0 'VCTRLN'
+.ends starved_inv_delay_line

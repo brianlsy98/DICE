@@ -14,11 +14,67 @@ sys.path.append(parent_dir)
 
 from dataloader import GraphDataLoader
 from model import send_to_device, Encoder
-
+import torch
 
 
 
 def contrastive_learning_loss(batch, nf, ef, gf):
+
+    # for training with same number of label pairs
+    def sample_indices(labels):
+        unique_labels, counts = torch.unique(labels, return_counts=True)
+        min_count = counts.min().item()
+
+        indices = []
+        for lbl in unique_labels:
+            lbl_indices = torch.where(labels == lbl)[0]
+            perm = torch.randperm(len(lbl_indices))
+            lbl_indices = lbl_indices[perm[:min_count]]
+            indices.append(lbl_indices)
+        indices = torch.cat(indices, dim=0)
+        indices = indices[torch.randperm(len(indices))]
+
+        return indices
+
+    node_indices = sample_indices(batch['node_y'])
+    edge_indices = sample_indices(batch['edge_y'])
+    graph_indices = sample_indices(batch['circuit'])
+
+    node_labels, node_features = batch['node_y'][node_indices], nf[node_indices]
+    edge_labels, edge_features = batch['edge_y'][edge_indices], ef[edge_indices]
+    graph_labels, graph_features = batch['circuit'][graph_indices], gf[graph_indices]
+
+    # Compute Cosine Similarity
+    node_similarity  = torch.mm(F.normalize(node_features, dim=1),
+                                F.normalize(node_features, dim=1).t())
+    edge_similarity  = torch.mm(F.normalize(edge_features, dim=1),
+                                F.normalize(edge_features, dim=1).t())
+    graph_similarity = torch.mm(F.normalize(graph_features, dim=1),
+                                F.normalize(graph_features, dim=1).t())
+
+    node_label_equal = (node_labels.unsqueeze(1) == node_labels.unsqueeze(0))
+    edge_label_equal = (edge_labels.unsqueeze(1) == edge_labels.unsqueeze(0))
+    graph_label_equal = (graph_labels.unsqueeze(1) == graph_labels.unsqueeze(0))
+
+    ns_exp = torch.exp(node_similarity).masked_fill(node_label_equal, 0)
+    es_exp = torch.exp(edge_similarity).masked_fill(edge_label_equal, 0)
+    gs_exp = torch.exp(graph_similarity).masked_fill(graph_label_equal, 0)
+
+    nf_log_prob = node_similarity - torch.log(ns_exp.sum(dim=1, keepdim=True))
+    ef_log_prob = edge_similarity - torch.log(es_exp.sum(dim=1, keepdim=True))
+    gf_log_prob = graph_similarity - torch.log(gs_exp.sum(dim=1, keepdim=True))
+
+    # loss
+    node_loss = - (nf_log_prob * node_label_equal.float()).mean()
+    edge_loss = - (ef_log_prob * edge_label_equal.float()).mean()
+    graph_loss = - (gf_log_prob * graph_label_equal.float()).mean()
+    total_loss = 0.1*node_loss + 0.001*edge_loss + graph_loss
+
+    return total_loss
+
+
+
+def contrastive_learning_loss1(batch, nf, ef, gf):
 
     # for training with same number of label pairs
     def sample_indices(labels):
@@ -70,9 +126,13 @@ def contrastive_learning_loss(batch, nf, ef, gf):
     graph_loss = - (gf_log_prob * graph_label_equal.float()).mean()
 
     # loss
-    total_loss = 0.2*node_loss + 0.1*edge_loss + 0.7*graph_loss
+    total_loss = node_loss + 0.01*edge_loss + graph_loss
 
     return total_loss
+
+
+
+
 
 
 
@@ -150,6 +210,10 @@ def train_model(args):
         print(f"Epoch: {epoch}/{params['train']['epochs']}\n\
                 Train Loss: {sum(train_losses)/len(train_losses)}\n\
                 Validation Loss: {sum(val_losses)/len(val_losses)}")
+
+        if epoch % (int(params['train']['epochs']) // 5) == 0:
+            model.save(f"./saved_models/{params['model']['project_name']}_{epoch}.pt")
+
 
     if args.wandb_log: wandb.finish()
 

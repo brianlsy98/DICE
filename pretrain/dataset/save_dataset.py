@@ -3,6 +3,7 @@ import sys
 import argparse
 import copy
 import random
+import json
 
 import torch
 
@@ -10,7 +11,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(parent_dir)
 
 
-from utils import *
+from utils import parse_netlist
 from dataloader import *
 
 '''
@@ -191,7 +192,9 @@ def data_augmentation(graph):
 
 def save_dataset(args):
 
-    circuit_names = []
+    os.remove("../../circuits.json")
+    circuit_dictionary = {}
+
     graphs = []
 
     # Dataset before Augmentation
@@ -199,7 +202,7 @@ def save_dataset(args):
 
         netlist = f"{args.netlist_dir}/{circuit}/netlist.cir"
         circuit_name, node_names, nf, node_labels, edge_indices, ef, edge_labels = parse_netlist(netlist)
-        
+
         graph = GraphData()
         graph.set_node_attributes(torch.from_numpy(nf).float())
         graph.set_node_labels(torch.from_numpy(node_labels).long())
@@ -207,37 +210,60 @@ def save_dataset(args):
                                   torch.from_numpy(ef).float())
         graph.set_edge_labels(torch.from_numpy(edge_labels).long())
 
-        if circuit_name not in circuit_names:
-            circuit_names.append(circuit_name)
-        graph.set_graph_attributes(circuit=circuit_names.index(circuit_name))
+        if circuit_name not in list(circuit_dictionary.keys()):
+            circuit_dictionary[circuit_name] = len(circuit_dictionary)
+        graph.set_graph_attributes(circuit=circuit_dictionary[circuit_name])
 
         graphs.append(graph)
 
+    with open("../../circuits.json", 'w') as f:
+        f.write(json.dumps(circuit_dictionary, indent=4))
+    print()
+    print(circuit_dictionary)
+    print()
 
-    # Data Augmentation
-    while len(graphs) < args.dataset_size:
-        graph = random.choice(graphs)
+    random.shuffle(graphs)
+    train_graphs = copy.deepcopy(graphs)
+    random.shuffle(graphs)
+    val_graphs = copy.deepcopy(graphs)
+    random.shuffle(graphs)
+    test_graphs = copy.deepcopy(graphs)
+
+    # Train Graph Data Augmentation
+    while len(train_graphs) < args.dataset_size*args.train_ratio:
+        graph = random.choice(train_graphs)
         new_graph = data_augmentation(graph)
-        graphs.append(new_graph)
+        train_graphs.append(new_graph)
         
-        if len(graphs) % 1000 == 0:
-            print(f"Data Augmentation: {len(graphs)}/{args.dataset_size}")
+        if len(train_graphs) % 1000 == 0:
+            print(f"Training Set Data Augmentation: {len(train_graphs)}/{int(args.dataset_size*args.train_ratio)}")
 
+    # Validation Graph Data Augmentation
+    while len(val_graphs) < args.dataset_size*args.val_ratio:
+        graph = random.choice(val_graphs)
+        new_graph = data_augmentation(graph)
+        val_graphs.append(new_graph)
+        
+        if len(val_graphs) % 1000 == 0:
+            print(f"Validation Set Data Augmentation: {len(val_graphs)}/{int(args.dataset_size*args.val_ratio)}")
+
+    # Test Graph Data Augmentation
+    while len(test_graphs) < args.dataset_size*args.test_ratio:
+        graph = random.choice(test_graphs)
+        new_graph = data_augmentation(graph)
+        test_graphs.append(new_graph)
+        
+        if len(test_graphs) % 1000 == 0:
+            print(f"Test Set Data Augmentation: {len(test_graphs)}/{int(args.dataset_size*args.test_ratio)}")
 
     # Save the dataset
     torch_data = {}
     path = "."
 
     torch_data['name'] = args.dataset_name
-    torch_data['all_data'] = graphs
-
-    random.shuffle(graphs)
-    train_size, val_size, test_size = int(len(graphs)*args.train_ratio),\
-                                      int(len(graphs)*args.val_ratio),\
-                                      int(len(graphs)*args.test_ratio)
-    torch_data['train_data'] = graphs[:train_size]
-    torch_data['val_data'] = graphs[train_size:train_size+val_size]
-    torch_data['test_data'] = graphs[train_size+val_size:]
+    torch_data['train_data'] = train_graphs
+    torch_data['val_data'] = val_graphs
+    torch_data['test_data'] = test_graphs
 
     os.makedirs(path, exist_ok=True)
     torch.save(torch_data, f"{path}/{args.dataset_name}.pt")
@@ -251,10 +277,10 @@ def save_dataset(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate circuit and simulation files from templates.")
     parser.add_argument("--dataset_name", default="pretraining_dataset_wo_device_params", type=str, help="Name of the dataset.")
-    parser.add_argument("--dataset_size", default=10000, type=int, help="Number of circuits in the dataset (for augmentation).")
+    parser.add_argument("--dataset_size", default=100000, type=int, help="Number of circuits in the dataset (for augmentation).")
     parser.add_argument("--netlist_dir", default="./netlist_templates", type=str, help="Name of the netlist template directory.")
-    parser.add_argument("--train_ratio", default=0.8, type=float, help="Percentage of data to be used for training.")
-    parser.add_argument("--val_ratio", default=0.1, type=float, help="Percentage of data to be used for validation.")
-    parser.add_argument("--test_ratio", default=0.1, type=float, help="Percentage of data to be used for testing.")
+    parser.add_argument("--train_ratio", default=0.7, type=float, help="Percentage of data to be used for training.")
+    parser.add_argument("--val_ratio", default=0.05, type=float, help="Percentage of data to be used for validation.")
+    parser.add_argument("--test_ratio", default=0.25, type=float, help="Percentage of data to be used for testing.")
     args = parser.parse_args()
     save_dataset(args)

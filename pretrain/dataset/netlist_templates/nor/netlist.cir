@@ -1,0 +1,9 @@
+* NOR
+
+.subckt nor gnd vdd vina vinb vout
+MP0  mp0d  vina  vdd  vdd  pmos  W='MP0W'  L='MP0L'
+MP1  vout  vinb  mp0d  vdd  pmos  W='MP1W'  L='MP1L'
+MN0  vout  vina  gnd  gnd  nmos  W='MN0W'  L='MN0L'
+MN1  vout  vinb  gnd  gnd  nmos  W='MN1W'  L='MN1L'
+C0   vout  gnd  'C0'
+.ends nor

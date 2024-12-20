@@ -1,0 +1,8 @@
+* RLC circuit 6
+* series / parallel 2
+
+.subckt rlc_6 gnd vin vout
+R0   vin   vout  'R0'
+C0   vout  gnd   'C0'
+L0   vout  gnd   'L0'
+.ends rlc_6

@@ -1,0 +1,31 @@
+* MUX_1
+
+
+.subckt mux_1 gnd vdd in_a in_b in_s out
+
+* Inverter
+* in_s -> in_s_bar
+MP0 in_s_bar in_s vdd vdd pmos W='MP0W' L='MP0L'
+MN0 in_s_bar in_s gnd gnd nmos W='MN0W' L='MN0L'
+C0  in_s_bar gnd 'C0'
+
+* logic
+MP1  mpd      in_a     vdd  vdd pmos W='MP1W' L='MP1L'
+MP2  out_bar  in_s     mpd  vdd pmos W='MP2W' L='MP2L'
+MP3  mpd      in_s_bar vdd  vdd pmos W='MP3W' L='MP3L'
+MP4  out_bar  in_b     mpd  vdd pmos W='MP4W' L='MP4L'
+MN1  mnd1     in_a     gnd  gnd nmos W='MN1W' L='MN1L'
+MN2  out_bar  in_s_bar mnd1 gnd nmos W='MN2W' L='MN2L'
+MN3  mnd2     in_b     gnd  gnd nmos W='MN3W' L='MN3L'
+MN4  out_bar  in_s     mnd2 gnd nmos W='MN4W' L='MN4L'
+
+* Inverter
+* out_bar -> out
+MP5 out out_bar vdd vdd pmos W='MP5W' L='MP5L'
+MN5 out out_bar gnd gnd nmos W='MN5W' L='MN5L'
+C1  out gnd 'C1'
+
+* coupling capacitor
+C2  out gnd 'C2'
+
+.ends mux_1

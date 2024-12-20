@@ -1,0 +1,18 @@
+* capacitor_delay_line
+
+.subckt capacitor_delay_line gnd vdd vin vout
+* first stage inv
+MP0  vin_bar  vin      vdd   vdd  pmos  W='MP0W'  L='MP0L'
+MN0  vin_bar  vin      gnd   gnd  nmos  W='MN0W'  L='MN0L'
+MN2  vin_bar  VCTRL    mn2s  gnd  nmos  W='MN2W'  L='MN2L'
+C0   mn2s     gnd      'C0'
+C1   vin_bar  gnd      'C1'
+* second stage inv
+MP1  vout  vin_bar  vdd  vdd  pmos  W='MP1W'  L='MP1L'
+MN1  vout  vin_bar  gnd  gnd  nmos  W='MN1W'  L='MN1L'
+MN3  vout  VCTRL    mn3s gnd  nmos  W='MN3W'  L='MN3L'
+C2   mn3s  gnd      'C2'
+C3   vout  gnd      'C3'
+* vctrl
+VCTRL VCTRL 0 'VCTRL'
+.ends capacitor_delay_line

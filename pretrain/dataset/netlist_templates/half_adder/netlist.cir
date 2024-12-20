@@ -1,0 +1,41 @@
+* Half Adder
+
+
+.subckt half_adder gnd vdd in_a in_b out_s out_c
+
+* NAND0: inputs = in_a, in_b; output = nand0out
+MP0  nand0out in_a    vdd vdd pmos W='MP0W' L='MP0L'
+MP1  nand0out in_b    vdd vdd pmos W='MP1W' L='MP1L'
+MN0  mn0d     in_a    gnd gnd nmos W='MN0W' L='MN0L'
+MN1  nand0out in_b    mn0d gnd nmos W='MN1W' L='MN1L'
+C0   nand0out gnd 'C0'
+
+* NAND1: inputs = in_a, nand0out; output = nand1out
+MP2  nand1out in_a     vdd vdd pmos W='MP2W' L='MP2L'
+MP3  nand1out nand0out vdd vdd pmos W='MP3W' L='MP3L'
+MN2  mn2d     in_a     gnd gnd nmos W='MN2W' L='MN2L'
+MN3  nand1out nand0out mn2d gnd nmos W='MN2W' L='MN2L'
+C1   nand1out gnd 'C1'
+
+* NAND2: inputs = in_b, nand0out; output = nand2out
+MP4  nand2out in_b     vdd vdd pmos W='MP4W' L='MP4L'
+MP5  nand2out nand0out vdd vdd pmos W='MP5W' L='MP5L'
+MN4  mn4d     in_b     gnd gnd nmos W='MN4W' L='MN4L'
+MN5  nand2out nand0out mn4d gnd nmos W='MN5W' L='MN5L'
+C2   nand2out gnd 'C2'
+
+* NAND3: inputs = nand1out, nand2out; output = out_s (sum)
+MP6  out_s    nand1out vdd vdd pmos W='MP6W' L='MP6L'
+MP7  out_s    nand2out vdd vdd pmos W='MP7W' L='MP7L'
+MN6  mn6d     nand1out gnd gnd nmos W='MN6W' L='MN6L'
+MN7  out_s    nand2out mn6d gnd nmos W='MN7W' L='MN7L'
+C3   out_s    gnd 'C3'
+
+* NAND4: inputs = nand0out, nand0out; output = out_c (carry)
+MP8  out_c    nand0out vdd vdd pmos W='MP0W' L='MP8L'
+MP9  out_c    nand0out vdd vdd pmos W='MP1W' L='MP9L'
+MN8  mn8d     nand0out gnd gnd nmos W='MN0W' L='MN8L'
+MN9  out_c    nand0out mn8d gnd nmos W='MN1W' L='MN9L'
+C4   out_c    gnd 'C4'
+
+.ends half_adder

@@ -1,0 +1,13 @@
+* RLC oscillator
+
+.subckt osc_rlc_cmos gnd vdd vin_nmos vin_pmos vout_1 vout_2
+R0   vout_1  vout_2  'R0'
+L0   vout_1  vout_2  'L0'
+C0   vout_1  vout_2  'C0'
+MP0  vout_1  vout_2    mp2d  vdd  L="MP0L"  W="MP0W"
+MP1  vout_2  vout_1    mp2d  vdd  L="MP1L"  W="MP1W"
+MP2  mp2d    vin_pmos  vdd   vdd  L="MP2L"  W="MP2W"
+MN0  vout_1  vout_2    mn2d  gnd  L="MN0L"  W="MN0W"
+MN1  vout_2  vout_1    mn2d  gnd  L="MN1L"  W="MN1W"
+MN2  mn2d    vin_nmos  gnd   gnd  L="MN2L"  W="MN2W"
+.ends osc_rlc_cmos

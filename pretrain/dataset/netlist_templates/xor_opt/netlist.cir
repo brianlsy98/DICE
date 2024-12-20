@@ -1,0 +1,26 @@
+* XOR optimized
+
+
+.subckt xor_opt gnd vdd in_a in_b out
+
+* Inverter
+* in_b -> in_b_bar
+MP0  in_b_bar in_b vdd vdd pmos W='MP0W' L='MP0L'
+MN0  in_b_bar in_b gnd gnd nmos W='MN0W' L='MN0L'
+C0   in_b_bar gnd 'C0'
+
+* Inverter-like output
+* in_a -> out
+MP1  out in_a in_b     vdd pmos W='MP1W' L='MP1L'
+MN1  out in_a in_b_bar gnd nmos W='MN1W' L='MN1L'
+C1   out gnd 'C1'
+
+* Passgate
+MP2  out  in_b      in_a vdd pmos W='MP2W' L='MP2L'
+MN2  out  in_b_bar  in_a gnd nmos W='MN2W' L='MN2L'
+C2   out  gnd 'C2'
+
+* Capacitor
+C3   out  gnd 'C3'
+
+.ends xor_opt

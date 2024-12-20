@@ -1,0 +1,11 @@
+* RLC circuit 7
+* series + parallel 1
+
+.subckt rlc_7 gnd vin vout
+R0   vin  vout  'R0'
+L0   vin  vout  'L0'
+C0   vin  vout  'C0'
+R1   vout vrl   'R1'
+L1   vrl  gnd   'L1'
+C1   vout gnd   'C1'
+.ends rlc_7

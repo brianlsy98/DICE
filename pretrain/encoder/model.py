@@ -4,7 +4,7 @@ import json
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_scatter import scatter_mean, scatter_softmax, scatter_add
+from torch_scatter import scatter_softmax, scatter_add, scatter_mean
 
 
 
@@ -17,31 +17,30 @@ def send_to_device(batch, device):
     return batch
 
 
-def build_layer(input_dim, hidden_dim, output_dim, bias=True):
+def build_layer(input_dim, hidden_dim, output_dim, layer_num, bias=True):
     layers = []
     layers.append(nn.Linear(input_dim, hidden_dim, bias=True))
-    layers.append(nn.Tanh())
-    layers.append(nn.Linear(hidden_dim, hidden_dim, bias=bias))
-    layers.append(nn.Tanh())
-    layers.append(nn.Linear(hidden_dim, hidden_dim, bias=bias))
-    layers.append(nn.Tanh())
+    for _ in range(layer_num-2):
+        layers.append(nn.GELU())
+        layers.append(nn.Linear(hidden_dim, hidden_dim, bias=bias))
     layers.append(nn.Linear(hidden_dim, output_dim, bias=bias))
-    layers.append(nn.Tanh())
     return nn.Sequential(*layers)
 
 
 class GNNlayer(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, bias=True):
+    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, bias=True):
         super(GNNlayer, self).__init__()
-        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, bias=bias)
-        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, bias=bias)
+        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, bias=bias)
+        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, bias=bias)
+        self.nf_bn = nn.BatchNorm1d(hidden_dim)
+        self.ef_bn = nn.BatchNorm1d(hidden_dim)
 
     def forward(self, nh, eh, edge_index):
         src_node_i, dst_node_i = edge_index
 
         n_h, e_h = self.nf_lin(nh), self.ef_lin(eh)
         src_nh, dst_nh = n_h[src_node_i], n_h[dst_node_i]   # (edge_num, hidden_dim)
-        msg = src_nh * e_h                                  # (edge_num, hidden_dim)
+        msg = src_nh + e_h                                  # (edge_num, hidden_dim)
         attn = torch.sum(msg * dst_nh, dim=-1)              # (edge_num)
         attn = scatter_softmax(attn, dst_node_i, dim=0)     # (edge_num)
 
@@ -49,10 +48,42 @@ class GNNlayer(nn.Module):
                          dst_node_i, dim=0,
                          dim_size=nh.size(0))               # (node_num, hidden_dim)
         n_h = n_h + nz
-        e_h = e_h + nz[src_node_i]
+        e_h = e_h * ( 1 + nz[src_node_i] - nz[dst_node_i] )
+
+        n_h, e_h = self.nf_bn(n_h), self.ef_bn(e_h)
 
         return n_h, e_h
 
+
+class GINlayer(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, bias=True):
+        super(GINlayer, self).__init__()
+        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, bias=bias)
+        self.nf_eps = nn.Parameter(torch.zeros(input_dim))
+        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, bias=bias)
+        self.ef_eps = nn.Parameter(torch.zeros(input_dim))
+        self.nf_bn = nn.BatchNorm1d(hidden_dim)
+        self.ef_bn = nn.BatchNorm1d(hidden_dim)
+
+    def forward(self, nh, eh, edge_index):
+        src_node_i, dst_node_i = edge_index
+
+        src_nh, dst_nh = nh[src_node_i], nh[dst_node_i]     # (edge_num, hidden_dim)
+        msg = src_nh + eh                                   # (edge_num, hidden_dim)
+        attn = torch.sum(msg * dst_nh, dim=-1)              # (edge_num)
+        attn = scatter_softmax(attn, dst_node_i, dim=0)     # (edge_num)
+
+        nz = scatter_add(src_nh * attn.unsqueeze(-1),
+                         dst_node_i, dim=0,
+                         dim_size=nh.size(0))               # (node_num, hidden_dim)
+
+        n_h = (1+self.nf_eps) * nh + nz
+        e_h = (1+self.ef_eps) * eh + nz[src_node_i] - nz[dst_node_i]
+
+        n_h, e_h = self.nf_lin(n_h), self.ef_lin(e_h)
+        n_h, e_h = self.nf_bn(n_h), self.ef_bn(e_h)
+
+        return n_h, e_h
 
 
 
@@ -60,12 +91,25 @@ class Encoder(nn.Module):
 
     def __init__(self, params):
         super(Encoder, self).__init__()
-        self.gnn_layer_num = params['gnn_layer_num']
+        self.gnn_depth = params['gnn_depth']
 
         # Layers
-        self.nf_lin_init = build_layer(9, params['hidden_dim'], params['hidden_dim'], bias=True)
-        self.ef_lin_init = build_layer(5, params['hidden_dim'], params['hidden_dim'], bias=True)
-        self.gnn = GNNlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'], bias=True)
+        self.nf_lin_init = build_layer(9, params['hidden_dim'], params['hidden_dim'],
+                                          params['layer_num'], bias=True)
+        self.ef_lin_init = build_layer(5, params['hidden_dim'], params['hidden_dim'],
+                                          params['layer_num'], bias=True)
+        self.nh_batch_norm_1 = nn.BatchNorm1d(params['hidden_dim'])
+        self.nh_batch_norm_2 = nn.BatchNorm1d(params['hidden_dim'])
+        self.eh_batch_norm_1 = nn.BatchNorm1d(params['hidden_dim'])
+        self.eh_batch_norm_2 = nn.BatchNorm1d(params['hidden_dim'])
+        self.gh_lin = build_layer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
+                                  params['layer_num'], bias=True)
+        self.gh_batch_norm = nn.BatchNorm1d(params['hidden_dim'])
+        # self.gnn = GNNlayer(params['hidden_dim'], params['hidden_dim'],
+        #                     params['hidden_dim'], params['layer_num'], bias=True)
+        self.gnn = GINlayer(params['hidden_dim'], params['hidden_dim'],
+                            params['hidden_dim'], params['layer_num'], bias=True)
+
 
         # Layer Initialization
         def init_weights(layer):
@@ -85,12 +129,19 @@ class Encoder(nn.Module):
         nh = self.nf_lin_init(nf)      # (node_num, hidden_dim)
         eh = self.ef_lin_init(ef)      # (edge_num, hidden_dim)
 
+        nh, eh = self.nh_batch_norm_1(nh), self.eh_batch_norm_1(eh)
+
         ##### GNN Layers #####
-        for _ in range(self.gnn_layer_num):
+        for _ in range(self.gnn_depth):
             nh, eh = self.gnn(nh, eh, edge_i)
         ######################
-        gh = scatter_mean(nh, batch['batch'], dim=0,\
-                         dim_size=batch['batch'].max().item()+1)
+
+        nh, eh = self.nh_batch_norm_2(nh), self.eh_batch_norm_2(eh)
+
+        gh = scatter_add(nh, batch['batch'], dim=0,\
+                          dim_size=batch['batch'].max().item()+1)
+        gh = self.gh_lin(gh)
+        gh = self.gh_batch_norm(gh)
 
         # Logging information (optional)
         info = {}

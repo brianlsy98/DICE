@@ -1,0 +1,31 @@
+* XOR with pass gates
+
+
+.subckt xor_passgate gnd vdd in_a in_b out
+
+* Inverter
+* in_a -> in_a_bar
+MP0 in_a_bar in_a vdd vdd pmos W='MP0W' L='MP0L'
+MN0 in_a_bar in_a gnd gnd nmos W='MN0W' L='MN0L'
+C0  in_a_bar gnd 'C0'
+
+* Inverter
+* in_b -> in_b_bar
+MP1 in_b_bar in_b vdd vdd pmos W='MP0W' L='MP0L'
+MN1 in_b_bar in_b gnd gnd nmos W='MN0W' L='MN0L'
+C1  in_b_bar gnd 'C1'
+
+* Passgate
+MP2  in_a  in_b      out vdd pmos W='MP2W' L='MP2L'
+MN2  in_a  in_b_bar  out gnd nmos W='MN2W' L='MN2L'
+C2   out   gnd 'C2'
+
+* Passgate
+MP3  in_a_bar  in_b_bar  vdd vdd pmos W='MP3W' L='MP3L'
+MN3  in_a_bar  in_b      gnd gnd nmos W='MN3W' L='MN3L'
+C3   out       gnd 'C3'
+
+* Capacitor
+C4   out gnd 'C4'
+
+.ends xor_passgate

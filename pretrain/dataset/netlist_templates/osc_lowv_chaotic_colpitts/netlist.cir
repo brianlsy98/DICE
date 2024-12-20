@@ -1,0 +1,14 @@
+* Low Voltage Chaos Colpitts Oscillator
+
+.subckt osc_lowv_chaotic_colpitts gnd vin_1 vin_2 vout
+R0   vin_1  mn2g  'R0'
+R1   vin_2  vout  'R1'
+MN0  mn2g   mn1g  gnd  gnd  nmos  L="MN0L"  W="MN0W"
+MN2  vout   mn2g  gnd  gnd  nmos  L="MN1L"  W="MN1W"
+R2   mn1g   mn2g  'R2'
+R3   mn2g   vl0c2 'R3'
+C0   mn1g   gnd   'C0'
+C1   mn1g   vl0c1 'C1'
+L0   vl0c1  vl0c2 'L0'
+C2   vl0c2  gnd   'C2'
+.ends osc_lowv_chaotic_colpitts

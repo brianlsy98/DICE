@@ -1,0 +1,8 @@
+* RLC circuit 3
+* all series 3
+
+.subckt rlc_3 gnd vin vout
+L0   vin   vout  'L0'
+R0   vout  vlc   'R0'
+C0   vlc   gnd   'C0'
+.ends rlc_3
