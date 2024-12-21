@@ -159,6 +159,7 @@ class GraphDataLoader:
         # Initialize lists to hold batched data
         x_list = []
         ny_list = []
+        dp_list = []
         edge_index_list = []
         edge_attr_list = []
         ey_list = []
@@ -170,6 +171,7 @@ class GraphDataLoader:
         for i, graph in enumerate(batch_graphs):
             x = graph.x                    # Node features
             ny = graph.node_y              # Node labels
+            dp = graph.device_params       # Device parameters
             edge_index = graph.edge_index  # Edge indices
             edge_attr = graph.edge_attr    # Edge attributes (optional)
             ey = graph.edge_y              # Edge labels (optional)
@@ -184,6 +186,10 @@ class GraphDataLoader:
 
             # Append node labels
             ny_list.append(ny)
+
+            # Append device parameters
+            if dp is not None: # None in Pretraining!!!
+                dp_list.append(dp)
 
             # Append adjusted edge indices
             edge_index_list.append(adjusted_edge_index)
@@ -202,7 +208,7 @@ class GraphDataLoader:
             for key, value in graph_attrs.items():
                 if key not in graph_level_attrs:
                     graph_level_attrs[key] = []
-                graph_level_attrs[key].append(torch.full((1,), value, dtype=torch.long))
+                graph_level_attrs[key].append(torch.full((1,), value, dtype=torch.float32))
 
             # Update node offset
             node_offset += num_nodes
@@ -210,6 +216,8 @@ class GraphDataLoader:
         # Concatenate all the lists
         batch_data['x'] = torch.cat(x_list, dim=0)
         batch_data['node_y'] = torch.cat(ny_list, dim=0)
+        if dp_list != []:
+            batch_data['device_params'] = torch.cat(dp_list, dim=0)
         batch_data['edge_index'] = torch.cat(edge_index_list, dim=1)
         if edge_attr_list:
             batch_data['edge_attr'] = torch.cat(edge_attr_list, dim=0)

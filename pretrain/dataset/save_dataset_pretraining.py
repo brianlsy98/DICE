@@ -10,9 +10,8 @@ import torch
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(parent_dir)
 
-
 from utils import parse_netlist
-from dataloader import *
+from dataloader import GraphData
 
 '''
 node_types = {'gnd'            : 0,
@@ -192,7 +191,7 @@ def data_augmentation(graph):
 
 def save_dataset(args):
 
-    os.remove("../../circuits.json")
+    os.remove("./circuits.json")
     circuit_dictionary = {}
 
     graphs = []
@@ -216,7 +215,7 @@ def save_dataset(args):
 
         graphs.append(graph)
 
-    with open("../../circuits.json", 'w') as f:
+    with open("./circuits.json", 'w') as f:
         f.write(json.dumps(circuit_dictionary, indent=4))
     print()
     print(circuit_dictionary)
@@ -258,7 +257,7 @@ def save_dataset(args):
 
     # Save the dataset
     torch_data = {}
-    path = "."
+    path = "./pretrain/dataset"
 
     torch_data['name'] = args.dataset_name
     torch_data['train_data'] = train_graphs
@@ -278,7 +277,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate circuit and simulation files from templates.")
     parser.add_argument("--dataset_name", default="pretraining_dataset_wo_device_params", type=str, help="Name of the dataset.")
     parser.add_argument("--dataset_size", default=100000, type=int, help="Number of circuits in the dataset (for augmentation).")
-    parser.add_argument("--netlist_dir", default="./netlist_templates", type=str, help="Name of the netlist template directory.")
+    parser.add_argument("--netlist_dir", default="./pretrain/dataset/netlist_templates", type=str, help="Name of the netlist template directory.")
     parser.add_argument("--train_ratio", default=0.7, type=float, help="Percentage of data to be used for training.")
     parser.add_argument("--val_ratio", default=0.05, type=float, help="Percentage of data to be used for validation.")
     parser.add_argument("--test_ratio", default=0.25, type=float, help="Percentage of data to be used for testing.")

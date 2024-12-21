@@ -14,12 +14,21 @@ import torch
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../pretrain/dataset'))
-sys.path.append(parent_dir)
 
 from utils import parse_netlist
-from dataloader import *
+from dataloader import GraphData
 
+
+
+def incomplete_simulation(graph_attrs, subtask_name):
+    if subtask_name == "delay_prediction":
+        if graph_attrs['minus_log_rise_delay'] is None or graph_attrs['minus_log_fall_delay'] is None:
+            return True
+        elif torch.isnan(graph_attrs['minus_log_rise_delay']) or torch.isnan(graph_attrs['minus_log_fall_delay']):
+            return True
+        else: return False
+    else:
+        raise ValueError("Invalid Subtask Name")
 
 
 def generate_dataset(args):
@@ -27,12 +36,12 @@ def generate_dataset(args):
     Run ngspice in batch mode to simulate the circuit.
     """
     # Circuit Dictionary
-    with open("../circuits.json", 'r') as f:
+    with open("./circuits.json", 'r') as f:
         circuit_dictionary = json.loads(f.read())
     print()
     print(circuit_dictionary)
 
-    subtask_dir = f"./{args.task_name}/{args.subtask_name}"
+    subtask_dir = f"./downstream_tasks/{args.task_name}/{args.subtask_name}"
 
     task_circuits = os.listdir(f"{subtask_dir}/netlists")
 
@@ -48,7 +57,7 @@ def generate_dataset(args):
         with open(f"{subtask_dir}/sim_template.cir", 'r') as f:
             sim_content = f.read()
         sim_content = sim_content.replace("'netlist_name'", circuit)
-        with open("./sim.cir", 'w') as f:
+        with open(f"{subtask_dir}/sim.cir", 'w') as f:
             f.write(sim_content)
 
         # info from netlist template file
@@ -72,11 +81,11 @@ def generate_dataset(args):
             param_pair = tuple((k, v) for k, v in zip(param_keys, param_values))
             for key, value in param_pair:
                 netlist_content = netlist_content.replace(f"'{key}'", str(value))
-            with open("./netlist.cir", 'w') as f:
+            with open(f"{subtask_dir}/netlist.cir", 'w') as f:
                 f.write(netlist_content)
 
             ## Run ngspice
-            result = subprocess.run(['ngspice', '-b', './sim.cir'], 
+            result = subprocess.run(['ngspice', '-b', f'{subtask_dir}/sim.cir'], 
                                     stdout=subprocess.PIPE, 
                                     stderr=subprocess.PIPE, 
                                     text=True)
@@ -109,9 +118,9 @@ def generate_dataset(args):
 
             if circuit_name not in list(circuit_dictionary.keys()):
                 circuit_dictionary[circuit_name] = len(circuit_dictionary)
-                with open("../circuits.json", 'w') as f:
+                with open("./circuits.json", 'w') as f:
                     f.write(json.dumps(circuit_dictionary, indent=4))
-            graph.set_graph_attributes(circuit=circuit_dictionary[circuit_name])
+            graph.set_graph_attributes(circuit=torch.tensor(circuit_dictionary[circuit_name], dtype=torch.long))
 
 
             # set device parameters : if device -> -log(parameter_value), else -> 1
@@ -120,15 +129,19 @@ def generate_dataset(args):
 
             # set graph level simulation results : rise_delay, fall_delay
             graph = add_simulation_results(graph, measurements, args.subtask_name)
-            graph_list.append(graph)
 
             # remove netlist.cir, sim.cir
-            os.remove(f"./netlist.cir")
-        os.remove(f"./sim.cir")
+            os.remove(f"{subtask_dir}/netlist.cir")
+
+            # go for another loop if simulation is not complete
+            if incomplete_simulation(graph.graph_attrs, args.subtask_name): continue
+
+            graph_list.append(graph)
+
+        os.remove(f"{subtask_dir}/sim.cir")
 
     # Save the dataset
     torch_data = {}
-    path = f"./{args.task_name}/{args.subtask_name}"
 
     torch_data['name'] = args.subtask_name
 
@@ -137,8 +150,7 @@ def generate_dataset(args):
     torch_data['val_data'] = graph_list[int(len(graph_list)*args.train_ratio):int(len(graph_list)*(args.train_ratio+args.val_ratio))]
     torch_data['test_data'] = graph_list[int(len(graph_list)*(args.train_ratio+args.val_ratio)):]
 
-    os.makedirs(path, exist_ok=True)
-    torch.save(torch_data, f"{path}/{args.subtask_name}_dataset.pt")
+    torch.save(torch_data, f"./downstream_tasks/{args.task_name}/{args.subtask_name}/{args.subtask_name}_dataset.pt")
 
     # remove bsim4v5.out
     os.remove(f"./bsim4v5.out")
@@ -152,6 +164,7 @@ def generate_dataset(args):
 def add_device_params(graph, node_names, param_pair):
     # node_name  : ('device1_name', 'device2_name', ...)
     # param_pair : (('param_name', param_value), ...)
+
     device_params = torch.ones_like(graph.node_y).float()
     for param_name, param_value in param_pair:
         if param_name[0] == "M":
@@ -182,10 +195,14 @@ def add_device_params(graph, node_names, param_pair):
 
 
 def add_simulation_results(graph, measurements, subtask_name):
-    if subtask_name == "inv_delay":
+
+    if subtask_name == "delay_prediction":
         rise_delay = measurements['t_out_rise_edge'] - measurements['t_in_rise_edge']
         fall_delay = measurements['t_out_fall_edge'] - measurements['t_in_fall_edge']
-        graph.set_graph_attributes(rise_delay=rise_delay, fall_delay=fall_delay)
+        minus_log_rise_delay = -torch.log(torch.tensor(rise_delay, dtype=torch.float32))
+        minus_log_fall_delay = -torch.log(torch.tensor(fall_delay, dtype=torch.float32))
+        graph.set_graph_attributes(minus_log_rise_delay=minus_log_rise_delay,
+                                   minus_log_fall_delay=minus_log_fall_delay)
 
     return graph
 

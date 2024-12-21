@@ -1,8 +1,8 @@
 * Simulation for delay calculation
 
 .option TEMP = 27C
-.include './technology_files/45nm_bulk.txt'
-.include './netlist.cir'
+.include './downstream_tasks/technology_files/45nm_bulk.txt'
+.include './downstream_tasks/digital/delay_prediction/netlist.cir'
 
 xDL gnd vdd vin vout 'netlist_name'
 

@@ -1,4 +1,48 @@
 import numpy as np
+import torch
+import torch.nn as nn
+
+
+
+def send_to_device(batch, device):
+    for key in batch.keys():
+        if isinstance(batch[key], torch.Tensor):
+            batch[key] = batch[key].to(device)
+        elif isinstance(batch[key], dict):
+            batch[key] = send_to_device(batch[key], device)
+    return batch
+
+
+
+def build_layer(input_dim, hidden_dim, output_dim, num_layers, activation='gelu', bias=True):
+    layers = []
+    layers.append(nn.Linear(input_dim, hidden_dim, bias=True))
+    for _ in range(num_layers-2):
+        if activation == 'gelu':
+            layers.append(nn.GELU())
+        elif activation == 'relu':
+            layers.append(nn.ReLU())
+        elif activation == 'sigmoid':
+            layers.append(nn.Sigmoid())
+        elif activation == 'tanh':
+            layers.append(nn.Tanh())
+        layers.append(nn.Linear(hidden_dim, hidden_dim, bias=bias))
+    layers.append(nn.Linear(hidden_dim, output_dim, bias=bias))
+    return nn.Sequential(*layers)
+
+
+
+def calculate_downstream_loss(out, batch, subtask_name):
+
+    if subtask_name == "delay_prediction":
+        rise_delay = batch['minus_log_rise_delay']
+        fall_delay = batch['minus_log_fall_delay']
+        delays = torch.stack([rise_delay, fall_delay], dim=1)
+        return nn.functional.mse_loss(out, delays)
+
+    else:
+        raise ValueError("Invalid Subtask Name")
+
 
 
 def parse_netlist(filename):

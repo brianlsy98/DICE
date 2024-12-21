@@ -1,0 +1,45 @@
+{
+    "project_name": "DICE",
+    "model": {
+        "encoder": {
+            "dice": {
+                "hidden_dim": 256,
+                "layer_num": 7,
+                "gnn_type": "GAT",
+                "gnn_depth": 3
+            },
+            "ge_mlp": {
+                "hidden_dim": 256,
+                "layer_num": 7
+            }   
+        },
+        "decoder": {
+            "hidden_dim": 256,
+            "layer_num": 7
+        }
+    },
+    "pretraining": {
+        "train": {
+            "lr": 1e-4,
+            "epochs": 500,
+            "batch_size": 256,
+            "device": "cuda"
+        },
+        "test": {
+            "batch_size": 128
+        }
+    },
+    "downstream_tasks": {
+        "train": {
+            "lr": 1e-4,
+            "epochs": 100,
+            "batch_size": 256,
+            "device": "cuda"
+        },
+        "test": {
+            "num_iterations": 10,
+            "batch_size": 64,
+            "device": "cuda"
+        }
+    }
+}

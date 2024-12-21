@@ -7,31 +7,79 @@ from tqdm import tqdm
 
 import torch
 
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../dataset'))
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(parent_dir)
 
 from dataloader import GraphDataLoader
-from model import Encoder
+from model import Encoder as DICE
 
-def cosine_similarity_matrix(X, Y=None):
+
+def cosine_similarity_mean(X, Y=None, chunk_size=10000):
     """
-    Compute the cosine similarity matrix between two sets of vectors.
-    If Y is None, compute self-similarity of X.
-    X: (M, D)
-    Y: (N, D) or None
-    Returns: (M, N) similarity matrix
+    Compute the mean cosine similarity between every vector in X and every vector in Y.
+    If Y is None, we compute the mean of the self-similarities in X.
+    To reduce memory usage, we do this in chunks.
+    
+    Returns: scalar mean similarity.
     """
     if Y is None:
         Y = X
+
     X_norm = X / np.linalg.norm(X, axis=1, keepdims=True)
     Y_norm = Y / np.linalg.norm(Y, axis=1, keepdims=True)
-    return X_norm @ Y_norm.T
 
-def compute_labelwise_similarities(embeddings, labels, label_type="Node"):
+    M = X_norm.shape[0]
+    N = Y_norm.shape[0]
+
+    # We'll accumulate sum of similarities and count
+    sim_sum = 0.0
+    sim_count = 0
+
+    # If Y is the same as X, we can compute triangle to avoid double calculation.
+    # But since we may not need this optimization right now, let's just compute the full matrix.
+    # For large arrays, let's chunk over Y:
+    for start_idx in range(0, N, chunk_size):
+        end_idx = min(start_idx + chunk_size, N)
+        Y_chunk = Y_norm[start_idx:end_idx]
+
+        # Result: (M, end_idx - start_idx)
+        sim_chunk = X_norm @ Y_chunk.T
+        sim_sum += sim_chunk.sum()
+        sim_count += sim_chunk.size
+
+    mean_sim = sim_sum / sim_count
+    return mean_sim
+
+
+def cosine_similarity_mean_self(X, chunk_size=10000):
+    """
+    Compute the mean cosine similarity of X with itself.
+    This includes the diagonal where similarity=1.0.
+    If needed, we can exclude it.
+    """
+    # Same approach, but we only need to do upper-triangular computations to save on memory if desired.
+    # For simplicity, let's just do the full computation and then adjust if needed.
+
+    X_norm = X / np.linalg.norm(X, axis=1, keepdims=True)
+    M = X_norm.shape[0]
+
+    sim_sum = 0.0
+    sim_count = 0
+
+    for start_idx in range(0, M, chunk_size):
+        end_idx = min(start_idx + chunk_size, M)
+        X_chunk = X_norm[start_idx:end_idx]
+        sim_chunk = X_chunk @ X_norm.T
+        sim_sum += sim_chunk.sum()
+        sim_count += sim_chunk.size
+
+    mean_sim = sim_sum / sim_count
+    return mean_sim
+
+
+def compute_labelwise_similarities(embeddings, labels, label_type="Node", chunk_size=10000):
     unique_labels = np.unique(labels)
 
-    # We'll store results and print after computing
-    # to avoid printing inside a loop.
     results = []
     for lbl in tqdm(unique_labels):
         positive_indices = np.where(labels == lbl)[0]
@@ -43,16 +91,11 @@ def compute_labelwise_similarities(embeddings, labels, label_type="Node"):
         if len(pos_emb) == 0 or len(neg_emb) == 0:
             continue
 
-        # Positive-Positive similarity
-        pp_sim = cosine_similarity_matrix(pos_emb, pos_emb)
-        # Positive-Negative similarity
-        pn_sim = cosine_similarity_matrix(pos_emb, neg_emb)
+        # Positive-Positive similarity mean
+        pp_mean = cosine_similarity_mean_self(pos_emb, chunk_size=chunk_size)
 
-        # We compute the mean of all entries for pp and pn.
-        # Note that pp includes the diagonal (self-similarity = 1.0).
-        # If you want to exclude the diagonal, you could mask it out.
-        pp_mean = np.mean(pp_sim)
-        pn_mean = np.mean(pn_sim)
+        # Positive-Negative similarity mean
+        pn_mean = cosine_similarity_mean(pos_emb, neg_emb, chunk_size=chunk_size)
 
         results.append((lbl, pp_mean, pn_mean))
 
@@ -65,24 +108,20 @@ def compute_labelwise_similarities(embeddings, labels, label_type="Node"):
 
 
 if __name__ == "__main__":
-
     # Load Parameters
     with open(f"./params.json", 'r') as f:
         params = json.load(f)
 
-    model_params = params['model']
-    test_params = params['test']
-
     # Load dataset
-    dataset = torch.load('../dataset/pretraining_dataset_wo_device_params.pt')
+    dataset = torch.load('./pretrain/dataset/pretraining_dataset_wo_device_params.pt')
     test_data = dataset['test_data']
-    dataloader = GraphDataLoader(test_data, batch_size=test_params['batch_size'], shuffle=True)
+    dataloader = GraphDataLoader(test_data, batch_size=params['pretraining']['test']['batch_size'], shuffle=True)
     print("Dataset loaded")
 
     # Initialize models
-    untrained_encoder = Encoder(model_params)
-    trained_encoder = Encoder(model_params)
-    trained_encoder.load(f"./saved_models/dice_pretraining.pt")
+    untrained_encoder = DICE(params['model']['dice'])
+    trained_encoder = DICE(params['model']['dice'])
+    trained_encoder.load(f"./pretrain/encoder/saved_models/{params['project_name']}_pretrained_model.pt")
     print("Model loaded")
 
     # Lists to accumulate embeddings and labels
@@ -143,28 +182,29 @@ if __name__ == "__main__":
     edge_labels_all = np.concatenate(edge_labels_all, axis=0)
     graph_labels_all = np.concatenate(graph_labels_all, axis=0)
 
-
     print("\nCosine Similarity\n")
+
+    chunk_size = 10000  # Adjust this as needed based on your memory constraints
 
     # Node similarities
     print("Node Label Similarities (Untrained)")
-    compute_labelwise_similarities(untrained_node_embeddings, node_labels_all, label_type="Node (Untrained)")
+    compute_labelwise_similarities(untrained_node_embeddings, node_labels_all, label_type="Node (Untrained)", chunk_size=chunk_size)
 
     print("\nNode Label Similarities (Trained)")
-    compute_labelwise_similarities(trained_node_embeddings, node_labels_all, label_type="Node (Trained)")
+    compute_labelwise_similarities(trained_node_embeddings, node_labels_all, label_type="Node (Trained)", chunk_size=chunk_size)
 
-    # Edge similarities (uncomment if needed)
-    # print("\nEdge Label Similarities (Untrained)")
-    # compute_labelwise_similarities(untrained_edge_embeddings, edge_labels_all, label_type="Edge (Untrained)")
+    # Edge similarities
+    print("\nEdge Label Similarities (Untrained)")
+    compute_labelwise_similarities(untrained_edge_embeddings, edge_labels_all, label_type="Edge (Untrained)", chunk_size=chunk_size)
 
-    # print("\nEdge Label Similarities (Trained)")
-    # compute_labelwise_similarities(trained_edge_embeddings, edge_labels_all, label_type="Edge (Trained)")
+    print("\nEdge Label Similarities (Trained)")
+    compute_labelwise_similarities(trained_edge_embeddings, edge_labels_all, label_type="Edge (Trained)", chunk_size=chunk_size)
 
     # Graph similarities
     print("\nGraph Label Similarities (Untrained)")
-    compute_labelwise_similarities(untrained_graph_embeddings, graph_labels_all, label_type="Graph (Untrained)")
+    compute_labelwise_similarities(untrained_graph_embeddings, graph_labels_all, label_type="Graph (Untrained)", chunk_size=chunk_size)
 
     print("\nGraph Label Similarities (Trained)")
-    compute_labelwise_similarities(trained_graph_embeddings, graph_labels_all, label_type="Graph (Trained)")
+    compute_labelwise_similarities(trained_graph_embeddings, graph_labels_all, label_type="Graph (Trained)", chunk_size=chunk_size)
 
     print()

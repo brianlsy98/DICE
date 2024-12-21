@@ -6,32 +6,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch_scatter import scatter_softmax, scatter_add, scatter_mean
 
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+sys.path.append(parent_dir)
+
+from utils import build_layer
 
 
-def send_to_device(batch, device):
-    for key in batch.keys():
-        if isinstance(batch[key], torch.Tensor):
-            batch[key] = batch[key].to(device)
-        elif isinstance(batch[key], dict):
-            batch[key] = send_to_device(batch[key], device)
-    return batch
-
-
-def build_layer(input_dim, hidden_dim, output_dim, layer_num, bias=True):
-    layers = []
-    layers.append(nn.Linear(input_dim, hidden_dim, bias=True))
-    for _ in range(layer_num-2):
-        layers.append(nn.GELU())
-        layers.append(nn.Linear(hidden_dim, hidden_dim, bias=bias))
-    layers.append(nn.Linear(hidden_dim, output_dim, bias=bias))
-    return nn.Sequential(*layers)
-
-
-class GNNlayer(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, bias=True):
-        super(GNNlayer, self).__init__()
-        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, bias=bias)
-        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, bias=bias)
+class GATlayer(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, activation, bias=True):
+        super(GATlayer, self).__init__()
+        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias=bias)
+        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias=bias)
         self.nf_bn = nn.BatchNorm1d(hidden_dim)
         self.ef_bn = nn.BatchNorm1d(hidden_dim)
 
@@ -56,11 +41,11 @@ class GNNlayer(nn.Module):
 
 
 class GINlayer(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, bias=True):
+    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, activation, bias=True):
         super(GINlayer, self).__init__()
-        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, bias=bias)
+        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias=bias)
         self.nf_eps = nn.Parameter(torch.zeros(input_dim))
-        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, bias=bias)
+        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias=bias)
         self.ef_eps = nn.Parameter(torch.zeros(input_dim))
         self.nf_bn = nn.BatchNorm1d(hidden_dim)
         self.ef_bn = nn.BatchNorm1d(hidden_dim)
@@ -87,29 +72,41 @@ class GINlayer(nn.Module):
 
 
 
-class Encoder(nn.Module):
+class DICE(nn.Module):
 
     def __init__(self, params):
-        super(Encoder, self).__init__()
+        super(DICE, self).__init__()
         self.gnn_depth = params['gnn_depth']
 
-        # Layers
-        self.nf_lin_init = build_layer(9, params['hidden_dim'], params['hidden_dim'],
-                                          params['layer_num'], bias=True)
-        self.ef_lin_init = build_layer(5, params['hidden_dim'], params['hidden_dim'],
-                                          params['layer_num'], bias=True)
-        self.nh_batch_norm_1 = nn.BatchNorm1d(params['hidden_dim'])
-        self.nh_batch_norm_2 = nn.BatchNorm1d(params['hidden_dim'])
-        self.eh_batch_norm_1 = nn.BatchNorm1d(params['hidden_dim'])
-        self.eh_batch_norm_2 = nn.BatchNorm1d(params['hidden_dim'])
-        self.gh_lin = build_layer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
-                                  params['layer_num'], bias=True)
-        self.gh_batch_norm = nn.BatchNorm1d(params['hidden_dim'])
-        # self.gnn = GNNlayer(params['hidden_dim'], params['hidden_dim'],
-        #                     params['hidden_dim'], params['layer_num'], bias=True)
-        self.gnn = GINlayer(params['hidden_dim'], params['hidden_dim'],
-                            params['hidden_dim'], params['layer_num'], bias=True)
-
+        # Linear & BatchNorm Layers
+        self.nf_lin_for_n = nn.Sequential(nn.Linear(9, params['hidden_dim']), nn.GELU(), nn.Linear(params['hidden_dim'], params['hidden_dim']))
+        self.ef_lin_for_n = nn.Sequential(nn.Linear(5, params['hidden_dim']), nn.GELU(), nn.Linear(params['hidden_dim'], params['hidden_dim']))
+        self.nf_lin_for_e = nn.Sequential(nn.Linear(9, params['hidden_dim']), nn.GELU(), nn.Linear(params['hidden_dim'], params['hidden_dim']))
+        self.ef_lin_for_e = nn.Sequential(nn.Linear(5, params['hidden_dim']), nn.GELU(), nn.Linear(params['hidden_dim'], params['hidden_dim']))
+        self.nf_lin_for_g = nn.Sequential(nn.Linear(9, params['hidden_dim']), nn.GELU(), nn.Linear(params['hidden_dim'], params['hidden_dim']))
+        self.ef_lin_for_g = nn.Sequential(nn.Linear(5, params['hidden_dim']), nn.GELU(), nn.Linear(params['hidden_dim'], params['hidden_dim']))
+        self.nh_batch_norm_for_n = nn.BatchNorm1d(params['hidden_dim'])
+        self.eh_batch_norm_for_n = nn.BatchNorm1d(params['hidden_dim'])
+        self.nh_batch_norm_for_e = nn.BatchNorm1d(params['hidden_dim'])
+        self.eh_batch_norm_for_e = nn.BatchNorm1d(params['hidden_dim'])
+        self.nh_batch_norm_for_g = nn.BatchNorm1d(params['hidden_dim'])
+        self.eh_batch_norm_for_g = nn.BatchNorm1d(params['hidden_dim'])
+        
+        # GNN Layers
+        if params['gnn_type'] == 'GIN':
+            self.gnn_nf = GINlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
+                                   params['layer_num'], activation='gelu', bias=True)
+            self.gnn_ef = GINlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
+                                   params['layer_num'], activation='gelu', bias=True)
+            self.gnn_gf = GINlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
+                                   params['layer_num'], activation='gelu', bias=True)
+        elif params['gnn_type'] == 'GAT':
+            self.gnn_nf = GATlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
+                                   params['layer_num'], activation='gelu', bias=True)
+            self.gnn_ef = GATlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
+                                   params['layer_num'], activation='gelu', bias=True)
+            self.gnn_gf = GATlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
+                                   params['layer_num'], activation='gelu', bias=True)
 
         # Layer Initialization
         def init_weights(layer):
@@ -117,36 +114,31 @@ class Encoder(nn.Module):
                 nn.init.xavier_normal_(layer.weight)
         self.apply(init_weights)
 
-        # optimizer
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=params["lr"])
-
 
     def forward(self, batch):
         nf = batch['x']
         edge_i = batch['edge_index']
         ef = batch['edge_attr']
 
-        nh = self.nf_lin_init(nf)      # (node_num, hidden_dim)
-        eh = self.ef_lin_init(ef)      # (edge_num, hidden_dim)
+        ### Linear & BatchNorm Layers ###
+        nh_for_n, eh_for_n = self.nf_lin_for_n(nf), self.ef_lin_for_n(ef)
+        nh_for_n, eh_for_n = self.nh_batch_norm_for_n(nh_for_n), self.eh_batch_norm_for_n(eh_for_n)
+        nh_for_e, eh_for_e = self.nf_lin_for_e(nf), self.ef_lin_for_e(ef)
+        nh_for_e, eh_for_e = self.nh_batch_norm_for_e(nh_for_e), self.eh_batch_norm_for_e(eh_for_e)
+        nh_for_g, eh_for_g = self.nf_lin_for_g(nf), self.ef_lin_for_g(ef)
+        nh_for_g, eh_for_g = self.nh_batch_norm_for_g(nh_for_g), self.eh_batch_norm_for_g(eh_for_g)
+        #################################
 
-        nh, eh = self.nh_batch_norm_1(nh), self.eh_batch_norm_1(eh)
-
-        ##### GNN Layers #####
+        ########## GNN Layers ###########
         for _ in range(self.gnn_depth):
-            nh, eh = self.gnn(nh, eh, edge_i)
-        ######################
+            nh_for_n, eh_for_n = self.gnn_nf(nh_for_n, eh_for_n, edge_i)
+            nh_for_e, eh_for_e = self.gnn_ef(nh_for_e, eh_for_e, edge_i)
+            nh_for_g, eh_for_g = self.gnn_gf(nh_for_g, eh_for_g, edge_i)
+        #################################
 
-        nh, eh = self.nh_batch_norm_2(nh), self.eh_batch_norm_2(eh)
+        gh_for_g = scatter_add(nh_for_g, batch['batch'], dim=0, dim_size=batch['batch'].max().item() + 1)
 
-        gh = scatter_add(nh, batch['batch'], dim=0,\
-                          dim_size=batch['batch'].max().item()+1)
-        gh = self.gh_lin(gh)
-        gh = self.gh_batch_norm(gh)
-
-        # Logging information (optional)
-        info = {}
-
-        return nh, eh, gh, info
+        return nh_for_n, eh_for_e, gh_for_g
 
 
     def save(self, path):
@@ -160,7 +152,7 @@ class Encoder(nn.Module):
 
 
 
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../dataset'))
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(parent_dir)
 
 from dataloader import GraphDataLoader
@@ -168,7 +160,7 @@ from dataloader import GraphDataLoader
 if __name__ == "__main__":
 
     # Load dataset
-    dataset = torch.load('../dataset/pretraining_dataset_wo_device_params.pt')
+    dataset = torch.load('./pretrain/dataset/pretraining_dataset_wo_device_params.pt')
     train_data = dataset['train_data']
     batch_size = 20
     dataloader = GraphDataLoader(train_data, batch_size=batch_size, shuffle=True)
@@ -177,7 +169,7 @@ if __name__ == "__main__":
         
         # Load Parameters
         with open(f"./params.json", 'r') as f:
-            model_params = json.load(f)['model']
+            model_params = json.load(f)['model']['dice']
 
         encoder = Encoder(model_params)
 
