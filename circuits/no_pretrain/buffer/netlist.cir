@@ -1,0 +1,9 @@
+* buffer
+
+.subckt buffer gnd vdd vin vout
+MP0  vin_b  vin    vdd  vdd  pmos  W='MP0W'  L='MP0L'
+MN0  vin_b  vin    gnd  gnd  nmos  W='MN0W'  L='MN0L'
+MP1  vout   vin_b  vdd  vdd  pmos  W='MP1W'  L='MP1L'
+MN1  vout   vin_b  gnd  gnd  nmos  W='MN1W'  L='MN1L'
+C0   vout   gnd    'C0'
+.ends buffer

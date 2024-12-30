@@ -9,17 +9,16 @@ from torch_scatter import scatter_softmax, scatter_add, scatter_mean
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(parent_dir)
 
-from utils import build_layer
+from utils import build_layer, init_weights
+
 
 
 class GATlayer(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, activation, bias=True):
+    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, activation, bias):
         super(GATlayer, self).__init__()
-        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias=bias)
-        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias=bias)
-        self.nf_bn = nn.BatchNorm1d(hidden_dim)
-        self.ef_bn = nn.BatchNorm1d(hidden_dim)
-
+        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout=0.0)
+        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout=0.0)
+        
     def forward(self, nh, eh, edge_index):
         src_node_i, dst_node_i = edge_index
 
@@ -35,110 +34,105 @@ class GATlayer(nn.Module):
         n_h = n_h + nz
         e_h = e_h * ( 1 + nz[src_node_i] - nz[dst_node_i] )
 
-        n_h, e_h = self.nf_bn(n_h), self.ef_bn(e_h)
-
         return n_h, e_h
 
 
-class GINlayer(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, activation, bias=True):
-        super(GINlayer, self).__init__()
-        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias=bias)
-        self.nf_eps = nn.Parameter(torch.zeros(input_dim))
-        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias=bias)
-        self.ef_eps = nn.Parameter(torch.zeros(input_dim))
-        self.nf_bn = nn.BatchNorm1d(hidden_dim)
-        self.ef_bn = nn.BatchNorm1d(hidden_dim)
 
+class GINlayer(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, activation, bias):
+        super(GINlayer, self).__init__()
+        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout=0.0)
+        self.nf_eps = nn.Parameter(torch.FloatTensor([0.0]))
+        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout=0.0)
+        self.ef_eps = nn.Parameter(torch.FloatTensor([0.0]))
+        
     def forward(self, nh, eh, edge_index):
         src_node_i, dst_node_i = edge_index
 
         src_nh, dst_nh = nh[src_node_i], nh[dst_node_i]     # (edge_num, hidden_dim)
-        msg = src_nh + eh                                   # (edge_num, hidden_dim)
-        attn = torch.sum(msg * dst_nh, dim=-1)              # (edge_num)
-        attn = scatter_softmax(attn, dst_node_i, dim=0)     # (edge_num)
-
-        nz = scatter_add(src_nh * attn.unsqueeze(-1),
-                         dst_node_i, dim=0,
-                         dim_size=nh.size(0))               # (node_num, hidden_dim)
+        msg = src_nh * eh                                   # (edge_num, hidden_dim)
+        
+        nz = scatter_add(msg, dst_node_i, dim=0, dim_size=nh.size(0))     # (node_num, hidden_dim)
 
         n_h = (1+self.nf_eps) * nh + nz
         e_h = (1+self.ef_eps) * eh + nz[src_node_i] - nz[dst_node_i]
 
         n_h, e_h = self.nf_lin(n_h), self.ef_lin(e_h)
-        n_h, e_h = self.nf_bn(n_h), self.ef_bn(e_h)
 
         return n_h, e_h
 
 
 
+
+
 class DICE(nn.Module):
-
-    def __init__(self, params):
+    def __init__(self, params, gnn_depth=3):
         super(DICE, self).__init__()
-        self.gnn_depth = params['gnn_depth']
+        self.gnn_depth = gnn_depth
 
-        # Linear & BatchNorm Layers
-        self.nf_lin_for_n = nn.Sequential(nn.Linear(9, params['hidden_dim']), nn.GELU(), nn.Linear(params['hidden_dim'], params['hidden_dim']))
-        self.ef_lin_for_n = nn.Sequential(nn.Linear(5, params['hidden_dim']), nn.GELU(), nn.Linear(params['hidden_dim'], params['hidden_dim']))
-        self.nf_lin_for_e = nn.Sequential(nn.Linear(9, params['hidden_dim']), nn.GELU(), nn.Linear(params['hidden_dim'], params['hidden_dim']))
-        self.ef_lin_for_e = nn.Sequential(nn.Linear(5, params['hidden_dim']), nn.GELU(), nn.Linear(params['hidden_dim'], params['hidden_dim']))
-        self.nf_lin_for_g = nn.Sequential(nn.Linear(9, params['hidden_dim']), nn.GELU(), nn.Linear(params['hidden_dim'], params['hidden_dim']))
-        self.ef_lin_for_g = nn.Sequential(nn.Linear(5, params['hidden_dim']), nn.GELU(), nn.Linear(params['hidden_dim'], params['hidden_dim']))
-        self.nh_batch_norm_for_n = nn.BatchNorm1d(params['hidden_dim'])
-        self.eh_batch_norm_for_n = nn.BatchNorm1d(params['hidden_dim'])
-        self.nh_batch_norm_for_e = nn.BatchNorm1d(params['hidden_dim'])
-        self.eh_batch_norm_for_e = nn.BatchNorm1d(params['hidden_dim'])
-        self.nh_batch_norm_for_g = nn.BatchNorm1d(params['hidden_dim'])
-        self.eh_batch_norm_for_g = nn.BatchNorm1d(params['hidden_dim'])
-        
+        # Linear Layers
+        self.init_lin = nn.ModuleDict({
+            'nf': nn.Sequential(nn.Linear(params['nf_in_dim'], params['hidden_dim']),
+                                nn.BatchNorm1d(params['hidden_dim']), nn.GELU(),
+                                nn.Linear(params['hidden_dim'], params['hidden_dim'])),
+            'ef': nn.Sequential(nn.Linear(params['ef_in_dim'], params['hidden_dim']),
+                                nn.BatchNorm1d(params['hidden_dim']), nn.GELU(),
+                                nn.Linear(params['hidden_dim'], params['hidden_dim']))
+        })
+        self.lin_out = nn.ModuleDict({
+            'nf': nn.Sequential(nn.Linear(params['hidden_dim'], params['hidden_dim']),
+                                nn.BatchNorm1d(params['hidden_dim']), nn.GELU(),
+                                nn.Linear(params['hidden_dim'], params['nf_out_dim'])),
+            'ef': nn.Sequential(nn.Linear(params['hidden_dim'], params['hidden_dim']),
+                                nn.BatchNorm1d(params['hidden_dim']), nn.GELU(),
+                                nn.Linear(params['hidden_dim'], params['ef_out_dim'])),
+            'gf': nn.Sequential(nn.Linear(params['hidden_dim'], params['hidden_dim']),
+                                nn.BatchNorm1d(params['hidden_dim']), nn.GELU(),
+                                nn.Linear(params['hidden_dim'], params['gf_out_dim']))
+        })
+
         # GNN Layers
         if params['gnn_type'] == 'GIN':
-            self.gnn_nf = GINlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
-                                   params['layer_num'], activation='gelu', bias=True)
-            self.gnn_ef = GINlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
-                                   params['layer_num'], activation='gelu', bias=True)
-            self.gnn_gf = GINlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
-                                   params['layer_num'], activation='gelu', bias=True)
+            self.gnn = nn.ModuleList([GINlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'], params['layer_num'],
+                                               params['activation'], True) for _ in range(self.gnn_depth)])
         elif params['gnn_type'] == 'GAT':
-            self.gnn_nf = GATlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
-                                   params['layer_num'], activation='gelu', bias=True)
-            self.gnn_ef = GATlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
-                                   params['layer_num'], activation='gelu', bias=True)
-            self.gnn_gf = GATlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'],
-                                   params['layer_num'], activation='gelu', bias=True)
-
-        # Layer Initialization
-        def init_weights(layer):
-            if isinstance(layer, nn.Linear):
-                nn.init.xavier_normal_(layer.weight)
-        self.apply(init_weights)
+            self.gnn = nn.ModuleList([GATlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'], params['layer_num'],
+                                               params['activation'], True) for _ in range(self.gnn_depth)])
 
 
     def forward(self, batch):
-        nf = batch['x']
-        edge_i = batch['edge_index']
-        ef = batch['edge_attr']
+        nf, ef, edge_i = batch['x'], batch['edge_attr'], batch['edge_index']
+        
+        ####### Init Linear Layers #######
+        nh, eh = self.init_lin['nf'](nf), self.init_lin['ef'](ef)
+        ##################################
 
-        ### Linear & BatchNorm Layers ###
-        nh_for_n, eh_for_n = self.nf_lin_for_n(nf), self.ef_lin_for_n(ef)
-        nh_for_n, eh_for_n = self.nh_batch_norm_for_n(nh_for_n), self.eh_batch_norm_for_n(eh_for_n)
-        nh_for_e, eh_for_e = self.nf_lin_for_e(nf), self.ef_lin_for_e(ef)
-        nh_for_e, eh_for_e = self.nh_batch_norm_for_e(nh_for_e), self.eh_batch_norm_for_e(eh_for_e)
-        nh_for_g, eh_for_g = self.nf_lin_for_g(nf), self.ef_lin_for_g(ef)
-        nh_for_g, eh_for_g = self.nh_batch_norm_for_g(nh_for_g), self.eh_batch_norm_for_g(eh_for_g)
-        #################################
+        ########## GNN Layers ############
+        for i in range(self.gnn_depth):
+            nh, eh = self.gnn[i](nh, eh, edge_i)
+        ##################################
 
-        ########## GNN Layers ###########
-        for _ in range(self.gnn_depth):
-            nh_for_n, eh_for_n = self.gnn_nf(nh_for_n, eh_for_n, edge_i)
-            nh_for_e, eh_for_e = self.gnn_ef(nh_for_e, eh_for_e, edge_i)
-            nh_for_g, eh_for_g = self.gnn_gf(nh_for_g, eh_for_g, edge_i)
-        #################################
+        ######## Graph Embeddings ########
+        gh = scatter_add(nh, batch['batch'], dim=0, dim_size=batch['batch'].max().item() + 1)\
+            + scatter_add(eh, batch['batch'][edge_i[0]], dim=0, dim_size=batch['batch'][edge_i[0]].max().item() + 1)
+        gh = self.lin_out['gf'](gh)
+        ##################################
+        
+        ##### Node / Edge Embeddings #####
+        nh = self.lin_out['nf'](nh).unsqueeze(1)    # (N, 1, nf_out_dim)
+        eh = self.lin_out['ef'](eh).unsqueeze(1)    # (E, 1, ef_out_dim)
 
-        gh_for_g = scatter_add(nh_for_g, batch['batch'], dim=0, dim_size=batch['batch'].max().item() + 1)
+        nh_label_one_hot = F.one_hot(batch['node_y'], num_classes=9).float().unsqueeze(-1) # (N, 9, 1)
+        eh_label_one_hot = F.one_hot(batch['edge_y'], num_classes=5).float().unsqueeze(-1) # (E, 5, 1)
 
-        return nh_for_n, eh_for_e, gh_for_g
+        nh_3d = nh_label_one_hot * nh   # (N, 9, nf_out_dim)
+        eh_3d = eh_label_one_hot * eh   # (E, 5, ef_out_dim)
+
+        nh = nh_3d.view(nh.size(0), -1) # (N, 9*nf_out_dim)
+        eh = eh_3d.view(eh.size(0), -1) # (E, 5*ef_out_dim)
+        ##################################
+        
+        return nh, eh, gh
 
 
     def save(self, path):
@@ -147,44 +141,7 @@ class DICE(nn.Module):
         torch.save(self.state_dict(), path)
 
     def load(self, path):
-        self.load_state_dict(torch.load(path))
-
-
-
-
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-sys.path.append(parent_dir)
-
-from dataloader import GraphDataLoader
-
-if __name__ == "__main__":
-
-    # Load dataset
-    dataset = torch.load('./pretrain/dataset/pretraining_dataset_wo_device_params.pt')
-    train_data = dataset['train_data']
-    batch_size = 20
-    dataloader = GraphDataLoader(train_data, batch_size=batch_size, shuffle=True)
-
-    for batch in dataloader:
-        
-        # Load Parameters
-        with open(f"./params.json", 'r') as f:
-            model_params = json.load(f)['model']['dice']
-
-        encoder = Encoder(model_params)
-
-        nf = batch['x']
-        edge_i = batch['edge_index']
-        ef = batch['edge_attr']
-        batch_index = batch['batch']
-
-        nh, eh, gh, info = encoder(batch)
-
-        print()        
-        print(batch)
-        print()
-        print(nh)
-        print()
-        print(eh)
-        print()
-        print(gh)
+        if torch.cuda.is_available():
+            self.load_state_dict(torch.load(path))
+        else:
+            self.load_state_dict(torch.load(path, map_location=torch.device('cpu')))

@@ -208,8 +208,18 @@ class GraphDataLoader:
             for key, value in graph_attrs.items():
                 if key not in graph_level_attrs:
                     graph_level_attrs[key] = []
-                graph_level_attrs[key].append(torch.full((1,), value, dtype=torch.float32))
-
+                
+                if isinstance(value, torch.Tensor):
+                    if value.dim() == 0:
+                        graph_level_attrs[key].append(
+                            torch.tensor([value], dtype=torch.float16)
+                        )
+                    else:
+                        graph_level_attrs[key].append(value.unsqueeze(0))
+                else:
+                    graph_level_attrs[key].append(
+                        torch.tensor([value], dtype=torch.float16)
+                    )
             # Update node offset
             node_offset += num_nodes
 

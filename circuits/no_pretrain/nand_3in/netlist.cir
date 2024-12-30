@@ -1,0 +1,11 @@
+* nand_3in
+
+.subckt nand_3in gnd vdd vina vinb vinc vout
+MP0  vout  vina  vdd   vdd  pmos  W='MP0W'  L='MP0L'
+MP1  vout  vinb  vdd   vdd  pmos  W='MP1W'  L='MP1L'
+MP2  vout  vinc  vdd   vdd  pmos  W='MP2W'  L='MP2L'
+MN0  mn0d  vina  gnd   gnd  nmos  W='MN0W'  L='MN0L'
+MN1  mn1d  vinb  mn0d  gnd  nmos  W='MN1W'  L='MN1L'
+MN2  vout  vinc  mn1d  gnd  nmos  W='MN2W'  L='MN2L'
+C0   vout  gnd  'C0'
+.ends nand_3in

@@ -3,26 +3,35 @@
     "model": {
         "encoder": {
             "dice": {
-                "hidden_dim": 256,
-                "layer_num": 7,
-                "gnn_type": "GAT",
-                "gnn_depth": 3
+                "nf_in_dim": 9, "ef_in_dim": 5, "hidden_dim": 512,
+                "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
+                "layer_num": 10, "activation": "gelu",
+                "gnn_type": "GIN"
             },
-            "ge_mlp": {
-                "hidden_dim": 256,
-                "layer_num": 7
-            }   
+            "parallel_gnn": {
+                "nf_in_dim": 9, "ef_in_dim": 5, "hidden_dim": 512,
+                "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
+                "layer_num": 3, "activation": "gelu",
+                "gnn_type": "GIN"
+            },
+            "series_gnn": {
+                "nf_in_dim": 576, "ef_in_dim": 320, "hidden_dim": 512,
+                "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
+                "layer_num": 3, "activation": "gelu",
+                "gnn_type": "GIN"
+            }
         },
         "decoder": {
-            "hidden_dim": 256,
-            "layer_num": 7
+            "nf_in_dim": 576, "ef_in_dim": 320, "hidden_dim": 256,
+            "layer_num": 3, "activation": "gelu", "dropout": 0.3
         }
     },
     "pretraining": {
         "train": {
-            "lr": 1e-4,
-            "epochs": 500,
-            "batch_size": 256,
+            "lr": 1e-5,
+            "epochs": 150,
+            "batch_size": 512,
+            "tau": 0.1,
             "device": "cuda"
         },
         "test": {
@@ -32,8 +41,8 @@
     "downstream_tasks": {
         "train": {
             "lr": 1e-4,
-            "epochs": 100,
-            "batch_size": 256,
+            "epochs": 300,
+            "batch_size": 2048,
             "device": "cuda"
         },
         "test": {
