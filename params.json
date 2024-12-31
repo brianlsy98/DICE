@@ -40,9 +40,9 @@
     },
     "downstream_tasks": {
         "train": {
-            "lr": 1e-4,
-            "epochs": 300,
-            "batch_size": 2048,
+            "lr": 1e-5,
+            "epochs": 100,
+            "batch_size": 1024,
             "device": "cuda"
         },
         "test": {

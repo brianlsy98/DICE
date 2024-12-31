@@ -44,7 +44,7 @@ MN14  net56 vb4 gnd gnd nmos W='MN14W'    L='MN14L'
 MN15  dm_1 vb3 net56 gnd nmos W='MN15W'   L='MN15L'
 
 * Capacitors
-C2 net4 gnd 'CAPACITOR_1'
-C0 vout net70 'CAPACITOR_0'
+C1 net4 gnd 'C1'
+C0 vout net70 'C0'
 
 .ends song_dacfc_pin_3_amp

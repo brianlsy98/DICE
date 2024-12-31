@@ -22,15 +22,35 @@ from dataloader import GraphData
 
 def incomplete_simulation(graph_attrs, task_name):
     if task_name == "delay_prediction":
-        if graph_attrs['minus_log_rise_delay'] is None or graph_attrs['minus_log_fall_delay'] is None:
+        if 'minus_log_rise_delay' not in graph_attrs or 'minus_log_fall_delay' not in graph_attrs:
+            return True
+        elif graph_attrs['minus_log_rise_delay'] is None or graph_attrs['minus_log_fall_delay'] is None:
             return True
         elif torch.isnan(graph_attrs['minus_log_rise_delay']) or torch.isnan(graph_attrs['minus_log_fall_delay']):
             return True
         elif torch.isinf(graph_attrs['minus_log_rise_delay']) or torch.isinf(graph_attrs['minus_log_fall_delay']):
             return True
         else: return False
+    elif task_name == "opamp_metric_prediction":
+        if 'power' not in graph_attrs or 'voutdc_minus_vindc' not in graph_attrs or\
+              'cmrr_dc' not in graph_attrs or 'gain_dc' not in graph_attrs or\
+                'vddpsrr_dc' not in graph_attrs:
+            return True
+        elif graph_attrs['power'] is None or graph_attrs['voutdc_minus_vindc'] is None or\
+           graph_attrs['cmrr_dc'] is None or graph_attrs['gain_dc'] is None or\
+           graph_attrs['vddpsrr_dc'] is None:
+            return True
+        elif torch.isnan(graph_attrs['power']) or torch.isnan(graph_attrs['voutdc_minus_vindc']) or\
+             torch.isnan(graph_attrs['cmrr_dc']) or torch.isnan(graph_attrs['gain_dc']) or\
+             torch.isnan(graph_attrs['vddpsrr_dc']):
+            return True
+        elif torch.isinf(graph_attrs['power']) or torch.isinf(graph_attrs['voutdc_minus_vindc']) or\
+            torch.isinf(graph_attrs['cmrr_dc']) or torch.isinf(graph_attrs['gain_dc']) or\
+            torch.isinf(graph_attrs['vddpsrr_dc']):
+            return True
+        else: return False
     else:
-        raise ValueError("Invalid Subtask Name")
+        raise ValueError("Invalid Task Name")
 
 
 
@@ -67,140 +87,46 @@ def add_device_params(graph, node_names, param_pair):
 
 
 
-def add_simulation_results(graph, measurements, subtask_name):
+def add_simulation_results(graph, measurements, task_name):
 
-    if subtask_name == "delay_prediction":
+    if task_name == "delay_prediction":
+        if 't_out_rise_edge' not in measurements or 't_out_fall_edge' not in measurements or\
+           't_in_rise_edge' not in measurements or 't_in_fall_edge' not in measurements:
+            return graph
         rise_delay = measurements['t_out_rise_edge'] - measurements['t_in_rise_edge']
         fall_delay = measurements['t_out_fall_edge'] - measurements['t_in_fall_edge']
-        minus_log_rise_delay = -torch.log(torch.tensor(rise_delay, dtype=torch.float32))
-        minus_log_fall_delay = -torch.log(torch.tensor(fall_delay, dtype=torch.float32))
+        minus_log_rise_delay = -torch.log(torch.tensor(rise_delay, dtype=torch.float16))
+        minus_log_fall_delay = -torch.log(torch.tensor(fall_delay, dtype=torch.float16))
         graph.set_graph_attributes(minus_log_rise_delay=minus_log_rise_delay,
                                    minus_log_fall_delay=minus_log_fall_delay)
+    elif task_name == "opamp_metric_prediction":
+        if 'power' not in measurements or 'vos25' not in measurements or\
+              'cmrrdc' not in measurements or 'dcgain' not in measurements or\
+                'dcpsrp' not in measurements:
+            return graph
+        power = torch.tensor(measurements['power'] * 1e3, dtype=torch.float16)             # mW unit
+        voutdc_minus_vindc = torch.tensor(measurements['vos25'] * 10, dtype=torch.float16) # 0.1V unit
+        cmrr_dc = torch.tensor(measurements['cmrrdc']/10, dtype=torch.float16)             # 0.1dB unit
+        gain_dc = torch.tensor(measurements['dcgain']/10, dtype=torch.float16)             # 0.1dB unit
+        vddpsrr_dc = torch.tensor(measurements['dcpsrp']/10, dtype=torch.float16)          # 0.1dB unit
+        graph.set_graph_attributes(power=power,
+                                   voutdc_minus_vindc=voutdc_minus_vindc,
+                                   cmrr_dc=cmrr_dc,
+                                   gain_dc=gain_dc,
+                                   vddpsrr_dc=vddpsrr_dc)
+    else: raise ValueError("Invalid Task Name")
 
     return graph
 
 
 
 ###############################################################################################################
-# Generate Dataset for Downstream Task: Delay Prediction
-def gen_data_delay_prediction(args, circuit_dictionary):
-    print()
-    print(f"Generating dataset for delay_prediction...")
-
-    graph_list = []
-
-    task_dir = f"./downstream_tasks/delay_prediction"
-    task_circuits = os.listdir(f"{task_dir}/device_parameters")
-
-    for circuit in task_circuits:
-        if circuit in os.listdir("./circuits/no_pretrain"):
-            circuit_dir = f"./circuits/no_pretrain/{circuit}"
-        elif circuit in os.listdir("./circuits/pretrain"):
-            circuit_dir = f"./circuits/pretrain/{circuit}"
-        else: raise ValueError("Invalid Circuit")
-
-        device_param_dir = f"{task_dir}/device_parameters/{circuit}"
-        print(f"Converting Graphs for {circuit}...")
-        
-        with open(f"{task_dir}/sim_template.cir", 'r') as f:
-            sim_content = f.read()
-        sim_content = sim_content.replace("'netlist_name'", circuit)
-        with open(f"{task_dir}/sim.cir", 'w') as f:
-            f.write(sim_content)
-
-        # info from netlist template file
-        circuit_name, node_names, nf, node_labels,\
-        edge_indices, ef, edge_labels = parse_netlist(f'{circuit_dir}/netlist.cir')
-
-        # Read the parameter file
-        with open(f"{device_param_dir}/param.json", 'r') as f:
-            param = json.load(f)
-        param_keys = list(param.keys())
-        param_pairs= list(product(*(param[key] for key in param_keys)))
-
-        # For every possible parameter combination
-        for param_values in tqdm(param_pairs, desc=f'Sweeping over parameters'):
-
-            # Read the netlist template file
-            with open(f"{circuit_dir}/netlist.cir", 'r') as f:
-                netlist_content = f.read()
-            
-            ## netlist template file -> parameter selected netlist file
-            param_pair = tuple((k, v) for k, v in zip(param_keys, param_values))
-            for key, value in param_pair:       
-                netlist_content = netlist_content.replace(f"'{key}'", str(value))
-            with open(f"{task_dir}/netlist.cir", 'w') as f:
-                f.write(netlist_content)
-
-            ## Run ngspice
-            result = subprocess.run(['ngspice', '-b', f'{task_dir}/sim.cir'], 
-                                    stdout=subprocess.PIPE, 
-                                    stderr=subprocess.PIPE, 
-                                    text=True)
-
-            ## Parse ngspice results
-            measurements = {}
-            # Regex to capture lines like: parameter_name = value
-            pattern = re.compile(r'^\s*(\w+)\s*=\s*(\S+)')
-            
-            for line in result.stdout.splitlines():
-                match = pattern.match(line)
-                if match:
-                    key, val_str = match.groups()
-                    if val_str == "failed":
-                        measurements[key] = None
-                    else:
-                        # Try to convert to float if possible
-                        try:
-                            measurements[key] = float(val_str)
-                        except ValueError:
-                            measurements[key] = val_str
-            ## Make Graph
-            graph = GraphData()
-            graph.set_node_attributes(torch.from_numpy(nf).float())
-            graph.set_node_labels(torch.from_numpy(node_labels).long())
-            graph.set_edge_attributes(torch.from_numpy(edge_indices).long(),
-                                    torch.from_numpy(ef).float())
-            graph.set_edge_labels(torch.from_numpy(edge_labels).long())
-
-            if circuit_name not in list(circuit_dictionary.keys()):
-                circuit_dictionary[circuit_name] = len(circuit_dictionary)+1
-            graph.set_graph_attributes(circuit=torch.tensor(circuit_dictionary[circuit_name], dtype=torch.long))
-
-
-            # set device parameters : if device -> -log(parameter_value), else -> 1
-            # mos : W/L, res : resistance, cap : capacitance, ind : inductance
-            graph = add_device_params(graph, node_names, param_pair)
-
-            # set graph level simulation results : rise_delay, fall_delay
-            graph = add_simulation_results(graph, measurements, args.task_name)
-
-            # remove netlist.cir, sim.cir
-            os.remove(f"{task_dir}/netlist.cir")
-
-            # go for another loop if simulation is not complete
-            if incomplete_simulation(graph.graph_attrs, args.task_name): continue
-
-            graph_list.append(graph)
-
-        # remove simulation files
-        os.remove(f"{task_dir}/sim.cir")
-        os.remove(f"./bsim4v5.out")
-
-    return graph_list, circuit_dictionary
-###############################################################################################################
-
-
-
-###############################################################################################################
 # Generate Dataset for Downstream Task: Circuit Similarity Prediction
-def gen_data_circuit_similarity_prediction(args, circuit_dictionary):
-    print()
-    print(f"Generating dataset for circuit_similarity_prediction...")
+def gen_data_circuit_classification(args, circuit_dictionary):
     graph_list = []
 
     # Circuit Labels
-    task_dir = f"./downstream_tasks/circuit_similarity_prediction"
+    task_dir = f"./downstream_tasks/{args.task_name}"
     with open(f"{task_dir}/circuit_labels.json", 'r') as f:
         circuit_labels = json.loads(f.read())
     print()
@@ -257,6 +183,115 @@ def gen_data_circuit_similarity_prediction(args, circuit_dictionary):
 
 
 ###############################################################################################################
+# Generate Dataset for Downstream Task: Delay Prediction
+def gen_data_simresult_prediction(args, circuit_dictionary):
+
+    graph_list = []
+
+    task_dir = f"./downstream_tasks/{args.task_name}"
+    task_circuits = os.listdir(f"{task_dir}/device_parameters")
+
+    for circuit in task_circuits[4:]:
+        if circuit in os.listdir("./circuits/no_pretrain"):
+            circuit_dir = f"./circuits/no_pretrain/{circuit}"
+        elif circuit in os.listdir("./circuits/pretrain"):
+            circuit_dir = f"./circuits/pretrain/{circuit}"
+        else: raise ValueError("Invalid Circuit")
+
+        device_param_dir = f"{task_dir}/device_parameters/{circuit}"
+        print(f"Converting Graphs for {circuit}...")
+        
+        with open(f"{task_dir}/sim_template.cir", 'r') as f:
+            sim_content = f.read()
+        sim_content = sim_content.replace("'netlist_name'", circuit)
+        with open(f"{task_dir}/sim.cir", 'w') as f:
+            f.write(sim_content)
+
+        # info from netlist template file
+        circuit_name, node_names, nf, node_labels,\
+        edge_indices, ef, edge_labels = parse_netlist(f'{circuit_dir}/netlist.cir')
+
+        # Read the parameter file
+        with open(f"{device_param_dir}/param.json", 'r') as f:
+            param = json.load(f)
+        param_keys = list(param.keys())
+        param_pairs= list(product(*(param[key] for key in param_keys)))
+
+        # For every possible parameter combination
+        for param_values in tqdm(param_pairs, desc=f'Sweeping over parameters'):
+
+            # Read the netlist template file
+            with open(f"{circuit_dir}/netlist.cir", 'r') as f:
+                netlist_content = f.read()
+            
+            ## netlist template file -> parameter selected netlist file
+            param_pair = tuple((k, v) for k, v in zip(param_keys, param_values))
+            for key, value in param_pair:       
+                netlist_content = netlist_content.replace(f"'{key}'", str(value))
+            with open(f"{task_dir}/netlist.cir", 'w') as f:
+                f.write(netlist_content)
+
+            ## Run ngspice
+            result = subprocess.run(['ngspice', '-b', f'{task_dir}/sim.cir'], 
+                                    stdout=subprocess.PIPE, 
+                                    stderr=subprocess.PIPE, 
+                                    text=True)
+            ## Parse ngspice results
+            measurements = {}
+            # Regex to capture lines like: parameter_name = value
+            pattern = re.compile(r'^\s*(\w+)\s*=\s*(\S+)')
+            
+            for line in result.stdout.splitlines():
+                match = pattern.match(line)
+                if match:
+                    key, val_str = match.groups()
+                    if val_str == "failed":
+                        measurements[key] = None
+                    else:
+                        # Try to convert to float if possible
+                        try:
+                            measurements[key] = float(val_str)
+                        except ValueError:
+                            measurements[key] = val_str
+            # print(measurements)
+            ## Make Graph
+            graph = GraphData()
+            graph.set_node_attributes(torch.from_numpy(nf).float())
+            graph.set_node_labels(torch.from_numpy(node_labels).long())
+            graph.set_edge_attributes(torch.from_numpy(edge_indices).long(),
+                                    torch.from_numpy(ef).float())
+            graph.set_edge_labels(torch.from_numpy(edge_labels).long())
+
+            if circuit_name not in list(circuit_dictionary.keys()):
+                circuit_dictionary[circuit_name] = len(circuit_dictionary)+1
+            graph.set_graph_attributes(circuit=torch.tensor(circuit_dictionary[circuit_name], dtype=torch.long))
+
+
+            # set device parameters : if device -> -log(parameter_value), else -> 1
+            # mos : W/L, res : resistance, cap : capacitance, ind : inductance
+            graph = add_device_params(graph, node_names, param_pair)
+
+            # set graph level simulation results : -log(rise_delay), -log(fall_delay), op_amp power, etc.
+            graph = add_simulation_results(graph, measurements, args.task_name)
+
+            # remove netlist.cir, sim.cir
+            os.remove(f"{task_dir}/netlist.cir")
+
+            # go for another loop if simulation is not complete
+            if incomplete_simulation(graph.graph_attrs, args.task_name): continue
+
+            graph_list.append(graph)
+
+        # remove simulation files
+        os.remove(f"{task_dir}/sim.cir")
+        os.remove(f"./bsim4v5.out")
+
+    return graph_list, circuit_dictionary
+###############################################################################################################
+
+
+
+###############################################################################################################
 def generate_dataset(args):
 
     # Circuit Dictionary
@@ -266,10 +301,14 @@ def generate_dataset(args):
     print(circuit_dictionary)
 
     ### Generate Dataset
-    if args.task_name == "delay_prediction":
-        graph_list, circuit_dictionary = gen_data_delay_prediction(args, circuit_dictionary)
-    elif args.task_name == "circuit_similarity_prediction":
-        graph_list, circuit_dictionary = gen_data_circuit_similarity_prediction(args, circuit_dictionary)
+    print()
+    print(f"Generating dataset for {args.task_name}...")
+    if args.task_name == "circuit_similarity_prediction" or args.task_name == "circuit_label_prediction":
+        graph_list, circuit_dictionary = gen_data_circuit_classification(args, circuit_dictionary)
+    elif args.task_name == "delay_prediction" or args.task_name == "opamp_metric_prediction":
+        graph_list, circuit_dictionary = gen_data_simresult_prediction(args, circuit_dictionary)
+    else: raise ValueError("Invalid Task Name")
+
 
     # Save the dataset
     random.shuffle(graph_list)

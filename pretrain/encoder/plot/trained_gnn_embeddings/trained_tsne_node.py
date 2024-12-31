@@ -7,8 +7,8 @@ import argparse
 
 import numpy as np
 import torch
-# Change: import UMAP instead of TSNE
-from umap import UMAP
+# Replace UMAP with TSNE
+from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
@@ -60,66 +60,78 @@ def main(args):
 
     # Process batches and collect embeddings
     for batch in tqdm(dataloader, desc='Processing Batches'):
-        umap_batch = send_to_device(batch, 'cuda')
+        tsne_batch = send_to_device(batch, 'cuda')
         
         # Get trained model embeddings
-        nf, _, _ = trained_encoder(umap_batch)
+        nf, _, _ = trained_encoder(tsne_batch)
 
         trained_node_embeddings.append(nf.detach().cpu().numpy())
-        node_labels_all.append(umap_batch['node_y'].detach().cpu().numpy())
+        node_labels_all.append(tsne_batch['node_y'].detach().cpu().numpy())
 
     # Free GPU memory
     print("\nFreeing up GPU memory...")
-    del trained_encoder  # Remove reference to your model
-    del dataloader       # Remove reference to your dataloader
-    del dataset          # Remove reference to your dataset
-    del test_data        # Remove reference to your test data
-    del umap_batch       # Remove reference to your batch
-    del nf               # Remove reference to your graph embeddings
+    del trained_encoder
+    del dataloader
+    del dataset
+    del test_data
+    del tsne_batch
+    del nf
     import gc
-    gc.collect()         # Run Python garbage collector
-    torch.cuda.empty_cache()  # Clear PyTorch’s CUDA cache
+    gc.collect()
+    torch.cuda.empty_cache()
     
     # Concatenate all batches
     trained_node_embeddings = np.concatenate(trained_node_embeddings, axis=0)
     node_labels_all = np.concatenate(node_labels_all, axis=0)
 
-    # Unique labels and colormap
+    # Unique labels and colormap (up to 50 colors)
     unique_node_labels = np.unique(node_labels_all)
-    node_cmap = plt.get_cmap('tab10', len(unique_node_labels))
+    max_colors = 9
+    node_cmap = plt.get_cmap('hsv', max_colors)
 
-    # Run UMAP (replaces TSNE)
-    print("\nNode embeddings UMAP trained...")
+    # Run t-SNE
+    print("\nNode embeddings t-SNE (trained)...")
     start = time.time()
-    umap_node_trained = UMAP(n_components=2, random_state=42)
-    node_embeddings_umap_trained = umap_node_trained.fit_transform(trained_node_embeddings)
+    tsne_node_trained = TSNE(n_components=2, random_state=42, perplexity=30, max_iter=1000)
+    node_embeddings_tsne_trained = tsne_node_trained.fit_transform(trained_node_embeddings)
     end = time.time()
     print(f"done in {end - start:.2f} seconds")
 
-    node_types = ['gnd', 'vdd', 'voltage_net', 'current_source',
-                  'nmos', 'pmos', 'resistor', 'capacitor', 'inductor']
+    node_types = [
+        'gnd', 'vdd', 'voltage_net', 'current_source',
+        'nmos', 'pmos', 'resistor', 'capacitor', 'inductor'
+    ]
     
-    # Plot UMAP embeddings
+    # Plot t-SNE embeddings
     fig, ax = plt.subplots(figsize=(10, 10))
     for i, label in enumerate(unique_node_labels):
         indices = np.where(node_labels_all == label)
-        embeddings = node_embeddings_umap_trained[indices]
-        ax.scatter(embeddings[:, 0], embeddings[:, 1],
-                   color=node_cmap(i), label=f'{node_types[label]}', s=15)
+        embeddings = node_embeddings_tsne_trained[indices]
+        color = node_cmap(i % max_colors)
 
-    ax.set_title(f"DICE ({model_params['gnn_type']}) Node Embeddings UMAP (trained)")
+        label_name = node_types[label] if label < len(node_types) else f"Label {label}"
+
+        ax.scatter(
+            embeddings[:, 0],
+            embeddings[:, 1],
+            color=color,
+            label=label_name,
+            s=15
+        )
+
+    ax.set_title(f"DICE ({model_params['gnn_type']}) Node Embeddings t-SNE (trained)")
     ax.set_xlabel('Component 1')
     ax.set_ylabel('Component 2')
     ax.legend()
 
     # Save and show the plot
-    plot_path = f"./pretrain/encoder/plot/trained_gnn_embeddings/umap_trained_{model_params['gnn_type']}_depth{args.gnn_depth}_nf.png"
+    plot_path = f"./pretrain/encoder/plot/trained_gnn_embeddings/tsne_trained_{model_params['gnn_type']}_depth{args.gnn_depth}_nf.png"
     plt.tight_layout()
     plt.savefig(plot_path)
     plt.show()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Plot trained graph embeddings using UMAP')
+    parser = argparse.ArgumentParser(description='Plot trained node embeddings using t-SNE')
     parser.add_argument('--gnn_depth', type=int, default=3, help='GNN depth for the Encoder')
     args = parser.parse_args()
     main(args)

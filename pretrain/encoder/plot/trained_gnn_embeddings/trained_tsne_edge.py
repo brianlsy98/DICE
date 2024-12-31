@@ -8,7 +8,8 @@ import argparse
 import numpy as np
 import torch
 
-from umap import UMAP
+# Replace UMAP with TSNE
+from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
@@ -60,65 +61,75 @@ def main(args):
 
     # Process batches and collect embeddings
     for batch in tqdm(dataloader, desc='Processing Batches'):
-        umap_batch = send_to_device(batch, 'cuda')
+        tsne_batch = send_to_device(batch, 'cuda')
         
-        # Get trained model embeddings
-        _, ef, _ = trained_encoder(umap_batch)
+        # Get trained model edge embeddings
+        _, ef, _ = trained_encoder(tsne_batch)
 
         trained_edge_embeddings.append(ef.detach().cpu().numpy())
-        edge_labels_all.append(umap_batch['edge_y'].detach().cpu().numpy())
+        edge_labels_all.append(tsne_batch['edge_y'].detach().cpu().numpy())
 
     # Free GPU memory
     print("\nFreeing up GPU memory...")
-    del trained_encoder  # Remove reference to your model
-    del dataloader       # Remove reference to your dataloader
-    del dataset          # Remove reference to your dataset
-    del test_data        # Remove reference to your test data
-    del umap_batch       # Remove reference to your batch
-    del ef               # Remove reference to your graph embeddings
+    del trained_encoder
+    del dataloader
+    del dataset
+    del test_data
+    del tsne_batch
+    del ef
     import gc
-    gc.collect()         # Run Python garbage collector
-    torch.cuda.empty_cache()  # Clear PyTorch’s CUDA cache
+    gc.collect()
+    torch.cuda.empty_cache()
     
     # Concatenate all batches
     trained_edge_embeddings = np.concatenate(trained_edge_embeddings, axis=0)
     edge_labels_all = np.concatenate(edge_labels_all, axis=0)
 
-    # Unique labels and colormap
+    # Unique labels and colormap (up to 50 colors)
     unique_edge_labels = np.unique(edge_labels_all)
-    edge_cmap = plt.get_cmap('tab10', len(unique_edge_labels))
+    max_colors = 5
+    edge_cmap = plt.get_cmap('hsv', max_colors)
 
-    # Run UMAP (replaces TSNE)
-    print("\nNode embeddings UMAP trained...")
+    # Run t-SNE
+    print("\nEdge embeddings t-SNE (trained)...")
     start = time.time()
-    umap_edge_trained = UMAP(n_components=2, random_state=42)
-    edge_embeddings_umap_trained = umap_edge_trained.fit_transform(trained_edge_embeddings)
+    tsne_edge_trained = TSNE(n_components=2, random_state=42, perplexity=30, max_iter=1000)
+    edge_embeddings_tsne_trained = tsne_edge_trained.fit_transform(trained_edge_embeddings)
     end = time.time()
     print(f"done in {end - start:.2f} seconds")
 
     edge_types = ['current_net', 'v2ng', 'v2pg', 'v2nb', 'v2pb']
     
-    # Plot UMAP embeddings
+    # Plot t-SNE embeddings
     fig, ax = plt.subplots(figsize=(10, 10))
     for i, label in enumerate(unique_edge_labels):
         indices = np.where(edge_labels_all == label)
-        embeddings = edge_embeddings_umap_trained[indices]
-        ax.scatter(embeddings[:, 0], embeddings[:, 1],
-                   color=edge_cmap(i), label=f'{edge_types[label]}', s=15)
+        embeddings = edge_embeddings_tsne_trained[indices]
+        color = edge_cmap(i % max_colors)
 
-    ax.set_title(f"DICE ({model_params['gnn_type']}) Node Embeddings UMAP (trained)")
+        label_name = edge_types[label] if label < len(edge_types) else f"Label {label}"
+
+        ax.scatter(
+            embeddings[:, 0],
+            embeddings[:, 1],
+            color=color,
+            label=label_name,
+            s=15
+        )
+
+    ax.set_title(f"DICE ({model_params['gnn_type']}) Edge Embeddings t-SNE (trained)")
     ax.set_xlabel('Component 1')
     ax.set_ylabel('Component 2')
     ax.legend()
 
     # Save and show the plot
-    plot_path = f"./pretrain/encoder/plot/trained_gnn_embeddings/umap_trained_{model_params['gnn_type']}_depth{args.gnn_depth}_nf.png"
+    plot_path = f"./pretrain/encoder/plot/trained_gnn_embeddings/tsne_trained_{model_params['gnn_type']}_depth{args.gnn_depth}_ef.png"
     plt.tight_layout()
     plt.savefig(plot_path)
     plt.show()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Plot trained graph embeddings using UMAP')
+    parser = argparse.ArgumentParser(description='Plot trained edge embeddings using t-SNE')
     parser.add_argument('--gnn_depth', type=int, default=3, help='GNN depth for the Encoder')
     args = parser.parse_args()
     main(args)

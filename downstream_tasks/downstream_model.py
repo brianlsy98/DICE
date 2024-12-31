@@ -101,14 +101,14 @@ class Added_GNN(nn.Module):     ### This is basically the same with DICE model
 
 
 class DownstreamEncoder(nn.Module):
-    def __init__(self, args, model_params):
+    def __init__(self, args, params):
         super(DownstreamEncoder, self).__init__()
         ##### 1) DICE
-        self.dice = DICE(model_params['dice'], args.dice_depth)
+        self.dice = DICE(params['dice'], args.dice_depth)
         ##### 2) GNN added parallel to DICE
-        self.parallel_gnn = Added_GNN(model_params['parallel_gnn'], args.p_gnn_depth)
+        self.parallel_gnn = Added_GNN(params['parallel_gnn'], args.p_gnn_depth)
         ##### 3) GNN added series to DICE
-        self.series_gnn = Added_GNN(model_params['series_gnn'], args.s_gnn_depth)
+        self.series_gnn = Added_GNN(params['series_gnn'], args.s_gnn_depth)
 
 
     def forward(self, batch):
@@ -134,7 +134,52 @@ class DownstreamEncoder(nn.Module):
 
 
 ############################################################################################################
-# DECODER for Task 1 : Delay Prediction
+# DECODER for Task 1, 2 : Circuit Similarity Prediction, Circuit Label Prediction
+############################################################################################################
+class CircuitSimilarity_MLP(nn.Module):
+    def __init__(self, params):
+        super(CircuitSimilarity_MLP, self).__init__()
+        self.attn_layer = build_layer(params['hidden_dim'], params['hidden_dim'], 1,
+                                      params['layer_num'], params['activation'], False, params['dropout'])
+    # outputs (BatchSize,) shape matrix of similarity scores
+    def forward(self, nf, ef, gf, batch):
+        base_gf = gf[0].unsqueeze(0)      # (1, gf_dim)
+        attn = base_gf * gf               # (BatchSize, gf_dim)
+        attn = self.attn_layer(attn)      # (BatchSize, 1)
+        output = F.softmax(attn, dim=0)   # (BatchSize, 1)
+        return output.squeeze(-1)         # (BatchSize,)
+
+
+
+class CircuitLabel_MLP(nn.Module):
+    def __init__(self, params):
+        super(CircuitLabel_MLP, self).__init__()
+        self.out_layer = build_layer(params['hidden_dim'], params['hidden_dim'], 6, # Dimension should change when number of label type changes
+                                     params['layer_num'], params['activation'], True, params['dropout'])
+    # outputs (BatchSize, 6) shape matrix of label scores
+    def forward(self, nf, ef, gf, batch):
+        output = self.out_layer(gf)       # (BatchSize, 6)
+        output = F.sigmoid(output)        # (BatchSize, 6)
+        return output
+
+
+
+class CircuitClassificationModel(nn.Module):
+    def __init__(self, params, task_name):
+        super(CircuitClassificationModel, self).__init__()
+        if task_name == "circuit_similarity_prediction":
+            self.out_layer = CircuitSimilarity_MLP(params)
+        elif task_name == "circuit_label_prediction":
+            self.out_layer = CircuitLabel_MLP(params)
+
+    def forward(self, nf, ef, gf, batch):
+        return self.out_layer(nf, ef, gf, batch)
+############################################################################################################
+
+
+
+############################################################################################################
+# DECODER for Task 3, 4 : Delay-line Delay Prediction, OpAmp Metric Prediction
 ############################################################################################################
 class DeviceParam_MLP(nn.Module):
     def __init__(self, params):
@@ -163,12 +208,17 @@ class DeviceParam_MLP(nn.Module):
 
 
 
-class DelayPredictionModel(nn.Module):
-    def __init__(self, model_params):
-        super(DelayPredictionModel, self).__init__()
+class SimResultPredictionModel(nn.Module):
+    def __init__(self, model_params, task_name):
+        super(SimResultPredictionModel, self).__init__()
         self.init_layer = DeviceParam_MLP(model_params)
-        self.output_layer = build_layer(model_params['hidden_dim'], model_params['hidden_dim'], 2,
-                                        model_params['layer_num'], model_params['activation'], True, model_params['dropout'])
+        if task_name == "delay_prediction":
+            self.output_layer = build_layer(model_params['hidden_dim'], model_params['hidden_dim'], 2,
+                                            model_params['layer_num'], model_params['activation'], True, model_params['dropout'])
+        elif task_name == "opamp_metric_prediction":
+            self.output_layer = build_layer(model_params['hidden_dim'], model_params['hidden_dim'], 5,
+                                            model_params['layer_num'], model_params['activation'], True, model_params['dropout'])
+        else: raise ValueError(f"Unknown task: {task_name}")
 
     def forward(self, nf, ef, gf, batch):
 
@@ -196,26 +246,6 @@ class DelayPredictionModel(nn.Module):
 
 
 ############################################################################################################
-# DECODER for Task 2 : Circuit Similarity Prediction
-############################################################################################################
-class CircuitSimilarityPredictionModel(nn.Module):
-    def __init__(self, model_params):
-        super(CircuitSimilarityPredictionModel, self).__init__()
-        self.attn_layer = build_layer(model_params['hidden_dim'], model_params['hidden_dim'], 1,
-                                      model_params['layer_num'], model_params['activation'], False, model_params['dropout'])
-
-    # outputs (BatchSize,) shape matrix of similarity scores
-    def forward(self, nf, ef, gf, batch):
-        base_gf = gf[0].unsqueeze(0)      # (1, gf_dim)
-        attn = base_gf * gf               # (BatchSize, gf_dim)
-        attn = self.attn_layer(attn)      # (BatchSize, 1)
-        output = F.softmax(attn, dim=0)   # (BatchSize, 1)
-        return output.squeeze(-1)         # (BatchSize,)
-############################################################################################################
-
-
-
-############################################################################################################
 # Downstream Model
 ############################################################################################################
 class DownstreamModel(nn.Module):
@@ -223,14 +253,11 @@ class DownstreamModel(nn.Module):
         super(DownstreamModel, self).__init__()
         ##### Encoder : forward should output (nf, ef, gf)
         self.encoder = DownstreamEncoder(args, model_params['encoder'])
-
         ##### Decoder : forward input should be (nf, ef, gf, batch)
-        if args.task_name == "delay_prediction":
-            self.decoder = DelayPredictionModel(model_params['decoder'])
-
-        elif args.task_name == "circuit_similarity_prediction":
-            self.decoder = CircuitSimilarityPredictionModel(model_params['decoder'])
-
+        if args.task_name == "circuit_similarity_prediction" or args.task_name == "circuit_label_prediction":
+            self.decoder = CircuitClassificationModel(model_params['decoder'], args.task_name)
+        elif args.task_name == "delay_prediction" or args.task_name == "opamp_metric_prediction":
+            self.decoder = SimResultPredictionModel(model_params['decoder'], args.task_name)
         else: raise ValueError(f"Unknown subtask: {args.task_name}")
 
 

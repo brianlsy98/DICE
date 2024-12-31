@@ -2,13 +2,12 @@ import os
 import sys
 import json
 import time
-import random
 import argparse
 
 import numpy as np
 import torch
-# Change: import UMAP instead of TSNE
-from umap import UMAP
+# Change: import TSNE instead of UMAP
+from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
@@ -59,14 +58,14 @@ def main(args):
 
     # Process batches and collect embeddings
     for batch in tqdm(dataloader, desc='Processing Batches'):
-        umap_batch = send_to_device(batch, 'cuda')
+        tsne_batch = send_to_device(batch, 'cuda')
 
         # Get trained model embeddings
-        _, _, gf = trained_encoder(umap_batch)
+        _, _, gf = trained_encoder(tsne_batch)
 
         # Append data to lists
         trained_graph_embeddings.append(gf.detach().cpu().numpy())
-        graph_labels_all.append(umap_batch['circuit'].detach().cpu().numpy())
+        graph_labels_all.append(tsne_batch['circuit'].detach().cpu().numpy())
 
     # Free GPU memory
     print("\nFreeing up GPU memory...")
@@ -74,7 +73,7 @@ def main(args):
     del dataloader
     del dataset
     del test_data
-    del umap_batch
+    del tsne_batch
     del gf
     import gc
     gc.collect()
@@ -84,39 +83,56 @@ def main(args):
     trained_graph_embeddings = np.concatenate(trained_graph_embeddings, axis=0)
     graph_labels_all = np.concatenate(graph_labels_all, axis=0)
 
-    # Unique labels and colormap
+    # Identify unique labels
     unique_graph_labels = np.unique(graph_labels_all)
-    graph_cmap = plt.get_cmap('tab10', len(unique_graph_labels))
+    num_labels = len(unique_graph_labels)
+    print(f"Found {num_labels} unique labels.")
 
-    # Run UMAP (replaces TSNE)
-    print("\nGraph embeddings UMAP (trained)...")
+    # Use a colormap that can comfortably handle up to 50 labels
+    # Here, 'hsv' is used with 50 discrete bins. If you have more than 50 labels, colors will repeat.
+    max_colors = 50
+    cmap = plt.get_cmap('hsv', max_colors)
+
+    # Run t-SNE
+    print("\nGraph embeddings t-SNE (trained)...")
     start = time.time()
-    umap_graph_trained = UMAP(n_components=2, random_state=42)
-    graph_embeddings_umap_trained = umap_graph_trained.fit_transform(trained_graph_embeddings)
+    tsne = TSNE(n_components=2, random_state=42, perplexity=30, max_iter=1000)
+    graph_embeddings_tsne_trained = tsne.fit_transform(trained_graph_embeddings)
     end = time.time()
     print(f"done in {end - start:.2f} seconds")
 
-    # Plot UMAP embeddings
+    # Plot t-SNE embeddings
     fig, ax = plt.subplots(figsize=(10, 10))
+
     for i, label in enumerate(unique_graph_labels):
         indices = np.where(graph_labels_all == label)
-        embeddings = graph_embeddings_umap_trained[indices]
-        ax.scatter(embeddings[:, 0], embeddings[:, 1], 
-                   color=graph_cmap(i), label=f'Label {label}', s=15)
+        embeddings = graph_embeddings_tsne_trained[indices]
+        # Map the label index to a color, wrapping around if we exceed max_colors
+        color = cmap(i % max_colors)
 
-    ax.set_title(f"DICE ({model_params['gnn_type']}) Graph Embeddings UMAP (trained)")
+        ax.scatter(
+            embeddings[:, 0], 
+            embeddings[:, 1], 
+            color=color, 
+            label=f'Label {label}', 
+            s=15
+        )
+
+    ax.set_title(f"DICE ({model_params['gnn_type']}) Graph Embeddings t-SNE (trained)")
     ax.set_xlabel('Component 1')
     ax.set_ylabel('Component 2')
-    # ax.legend()
+
+    # Optionally enable the legend if you want to see label names
+    # ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 
     # Save and show the plot
-    plot_path = f"./pretrain/encoder/plot/trained_gnn_embeddings/umap_trained_{model_params['gnn_type']}_depth{args.gnn_depth}_gf.png"
+    plot_path = f"./pretrain/encoder/plot/trained_gnn_embeddings/tsne_trained_{model_params['gnn_type']}_depth{args.gnn_depth}_gf.png"
     plt.tight_layout()
     plt.savefig(plot_path)
     plt.show()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Plot trained graph embeddings using UMAP')
+    parser = argparse.ArgumentParser(description='Plot trained graph embeddings using t-SNE')
     parser.add_argument('--gnn_depth', type=int, default=3, help='GNN depth for the Encoder')
     args = parser.parse_args()
     main(args)

@@ -23,7 +23,19 @@ from downstream_model import DownstreamModel
 
 def calculate_downstream_loss(out, batch, task_name):
 
-    if task_name == "delay_prediction":
+    if task_name == "circuit_similarity_prediction":
+        # out : (batch_size, 1), batch['labels'] : (batch_size, label_num)
+        labels = batch['labels'].float()
+        sim = torch.mm(labels, labels[0].unsqueeze(-1))   # (batch_size, 1)
+        sim = torch.softmax(sim, dim=0).squeeze(-1)         # (batch_size,)
+        return -(sim*torch.log(out)).sum()
+
+    elif task_name == "circuit_label_prediction":
+        # out : (batch_size, label_num), batch['labels'] : (batch_size, label_num)
+        labels = batch['labels'].float()
+        return -(labels*torch.log(out)).mean()
+
+    elif task_name == "delay_prediction":
         rise_delay = batch['minus_log_rise_delay']
         fall_delay = batch['minus_log_fall_delay']
         delays = torch.stack([rise_delay, fall_delay], dim=1)
@@ -31,12 +43,15 @@ def calculate_downstream_loss(out, batch, task_name):
         ##### remind that the output is minus log value of the delays
         return F.mse_loss(out, delays)
 
-    elif task_name == "circuit_similarity_prediction":
-        # out : (batch_size, 1), batch['labels'] : (batch_size, label_num)
-        labels = batch['labels'].float()
-        sim = torch.mm(labels, labels[0].unsqueeze(-1))   # (batch_size, 1)
-        sim = torch.softmax(sim, dim=0).squeeze(-1)         # (batch_size,)
-        return -(sim*torch.log(out)).sum()
+    elif task_name == "opamp_metric_prediction":
+        power = batch['power']
+        voutdc_minus_vindc = batch['voutdc_minus_vindc']
+        cmrr_dc = batch['cmrr_dc']
+        gain_dc = batch['gain_dc']
+        vddpsrr_dc = batch['vddpsrr_dc']
+        metrics = torch.stack([power, voutdc_minus_vindc, cmrr_dc, gain_dc, vddpsrr_dc], dim=1)
+        # power: *1e3, voutdc_minus_vindc: *10, cmrr_dc: /10, gain_dc: /10, vddpsrr_dc: /10
+        return F.mse_loss(out, metrics)
 
     else: raise ValueError("Invalid Subtask Name")
 
@@ -73,6 +88,7 @@ def train(args):
     ########################
     print()
     print("Model Initialized")
+    print("training parameter num:", sum(p.numel() for p in model.parameters() if p.requires_grad))
     print()
     model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
                  f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
