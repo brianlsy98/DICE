@@ -1,0 +1,18 @@
+* diode_delay_line
+
+.subckt diode_delay_line gnd vdd vin vout
+* first stage
+MP0  vin_bar  vin   vdd  vdd  pmos  W=2e-06  L=1.3e-07
+MN0  vin_bar  vin   gnd  gnd  nmos  W=1e-06  L=1.3e-07
+MN1  vin_bar  VCTRL mn1s gnd  nmos  W=1e-06  L=1.3e-07
+MP1  gnd      gnd   mn1s vdd  pmos  W=2e-06  L=1.3e-07
+* second stage
+MP2  vout  vin_bar  vdd  vdd  pmos  W=2e-06  L=1.3e-07
+MN2  vout  vin_bar  gnd  gnd  nmos  W=1e-06  L=1.3e-07
+MN3  vout  VCTRL    mn3s gnd  nmos  W=1e-06  L=1.3e-07
+MP3  gnd   gnd      mn3s vdd  pmos  W=3e-06  L=1.3e-07
+* capacitor
+C0   vout  gnd  5e-12
+* VCTRL
+VCTRL VCTRL 0 1.0
+.ends diode_delay_line

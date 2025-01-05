@@ -20,7 +20,8 @@ from dataloader import GraphData
 
 def save_dataset(args):
 
-    os.remove("./circuits/circuits.json")
+    if os.path.exists("./circuits/circuits.json"):
+        os.remove("./circuits/circuits.json")
     circuit_dictionary = {}
 
     ############################################################################################################
@@ -94,8 +95,11 @@ def save_dataset(args):
     unseen_graphs = dict()
 
     # Dataset before Augmentation
-    for circuit in os.listdir("./circuits/no_pretrain"):
-        netlist = f"./circuits/no_pretrain/{circuit}/netlist.cir"
+    for circuit in os.listdir("./circuits/downstreamtrain_nopretrain")+os.listdir("./circuits/untrained"):
+        if circuit in os.listdir("./circuits/downstreamtrain_nopretrain"):
+            netlist = f"./circuits/downstreamtrain_nopretrain/{circuit}/netlist.cir"
+        elif circuit in os.listdir("./circuits/untrained"):
+            netlist = f"./circuits/untrained/{circuit}/netlist.cir"
         circuit_name, node_names, nf, node_labels, edge_indices, ef, edge_labels = parse_netlist(netlist)
 
         graph = GraphData()

@@ -19,7 +19,7 @@ from dataloader import GraphDataLoader
 from model import DICE
 
 
-def contrastive_learning_loss(gf, gf_labels, tau):
+def contrastive_learning_loss(gf, gf_labels, tau, tau_tn):
     """
     A refactored contrastive loss that uses GPU-based matrix multiplication 
     for node, edge, and graph features.
@@ -47,11 +47,17 @@ def contrastive_learning_loss(gf, gf_labels, tau):
     gf_cosine_similarity = torch.mm(gf_n, gf_n.t())
 
     gs_exp = torch.exp(gf_cosine_similarity / tau)
-    gf_log_value_matrix = \
-        gf_cosine_similarity - torch.log(
-            gs_exp.masked_fill(graph_label_equal, 0).sum(dim=1, keepdim=True)  # sum neg pairs
-            + gs_exp.masked_fill(~graph_label_true_negative, 0).sum(dim=1, keepdim=True)  # sum true neg pairs
-        )
+    if tau_tn == "None":
+        gf_log_value_matrix = \
+            gf_cosine_similarity - torch.log(
+                gs_exp.masked_fill(graph_label_equal, 0).sum(dim=1, keepdim=True)  # sum neg pairs
+            )
+    else:
+        gf_log_value_matrix = \
+            gf_cosine_similarity - torch.log(
+                gs_exp.masked_fill(graph_label_equal, 0).sum(dim=1, keepdim=True)  # sum neg pairs
+                + (gs_exp**(tau/tau_tn)).masked_fill(~graph_label_true_negative, 0).sum(dim=1, keepdim=True)  # sum true neg pairs
+            )
 
     gf_loss = - (gf_log_value_matrix * graph_label_equal.float()).mean()
 
@@ -72,6 +78,9 @@ def train_model(args):
 
     with open('./params.json', 'r') as f:
         params = json.load(f)
+    tau = f"{params['pretraining']['train']['tau']}".replace(".", "")
+    tautn = f"{params['pretraining']['train']['tau_tn']}".replace(".", "")\
+                if params['pretraining']['train']['tau_tn'] != "None" else "None"
 
     ########################
     model = DICE(params['model']['encoder']['dice'], gnn_depth=args.gnn_depth)
@@ -93,7 +102,7 @@ def train_model(args):
             project=params['project_name'],
             name=(
                 f"dice_pretraining_{params['model']['encoder']['dice']['gnn_type']}"
-                f"_depth{args.gnn_depth}_seed{args.seed}"
+                f"_depth{args.gnn_depth}_tau{tau}_tautn{tautn}_seed{args.seed}"
             ),
             config=config
         )
@@ -129,12 +138,9 @@ def train_model(args):
     print("val_data:", len(val_data))
     print()
 
-    # ----------------------
-    # Initialize GradScaler
-    # ----------------------
-    scaler = GradScaler()
 
     ### Training
+    scaler = GradScaler()
     for epoch in range(int(params['pretraining']['train']["epochs"])):
 
         # train
@@ -149,7 +155,8 @@ def train_model(args):
                 train_loss = contrastive_learning_loss(
                     gf,
                     train_batch['circuit'],
-                    params['pretraining']['train']['tau']
+                    params['pretraining']['train']['tau'],
+                    params['pretraining']['train']['tau_tn']
                 )
             scaler.scale(train_loss).backward()
             scaler.step(model.optimizer)
@@ -169,7 +176,8 @@ def train_model(args):
                     val_loss = contrastive_learning_loss(
                         gf,
                         val_batch['circuit'],
-                        params['pretraining']['train']['tau']
+                        params['pretraining']['train']['tau'],
+                        params['pretraining']['train']['tau_tn']
                     )
                 ############################
                 val_losses.append(val_loss.item())
@@ -187,22 +195,20 @@ def train_model(args):
             f"Validation Loss: {sum(val_losses)/len(val_losses)}"
         )
 
-        if epoch % (int(params['pretraining']['train']['epochs']) // 20) == 0:
-            model.save(
-                f"./pretrain/encoder/saved_models"
-                f"/{params['project_name']}_pretrained_model"
-                f"_{params['model']['encoder']['dice']['gnn_type']}"
-                f"_depth{args.gnn_depth}_epoch{epoch}.pt"
-            )
+        model.save(
+            f"./pretrain/encoder/saved_models"
+            f"/{params['project_name']}_pretrained_model"
+            f"_{params['model']['encoder']['dice']['gnn_type']}"
+            f"_depth{args.gnn_depth}_tau{tau}_tautn{tautn}_epoch{epoch}.pt"
+        )
 
     if args.wandb_log:
         wandb.finish()
 
     model.save(
-        f"./pretrain/encoder/saved_models/"
-        f"/{params['project_name']}_pretrained_model"
+        f"./pretrain/encoder/{params['project_name']}_pretrained_model"
         f"_{params['model']['encoder']['dice']['gnn_type']}"
-        f"_depth{args.gnn_depth}.pt"
+        f"_depth{args.gnn_depth}_tau{tau}_tautn{tautn}.pt"
     )
 
 
@@ -214,7 +220,7 @@ if __name__ == "__main__":
         type=str,
         help="Name of the dataset directory"
     )
-    parser.add_argument("--gnn_depth", default=3, type=int, help="Depth of GNN")
+    parser.add_argument("--gnn_depth", default=2, type=int, help="Depth of GNN")
     parser.add_argument("--wandb_log", default=0, type=int, help="Log to wandb")
     parser.add_argument("--seed", default=0, type=int, help="Seed for reproducibility")
     parser.add_argument("--gpu", type=int, default=0, help="CUDA device index")

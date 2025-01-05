@@ -1,6 +1,6 @@
 * nor_3in
 
-.subckt nor_3in gnd vdd vina vinb vout
+.subckt nor_3in gnd vdd vina vinb vinc vout
 MP0  mp0d  vina  vdd   vdd  pmos  W='MP0W'  L='MP0L'
 MP1  mp1d  vinb  mp0d  vdd  pmos  W='MP1W'  L='MP1L'
 MP2  vout  vinc  mp1d  vdd  pmos  W='MP2W'  L='MP2L'

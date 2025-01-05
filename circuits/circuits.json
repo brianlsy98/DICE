@@ -48,5 +48,10 @@
     "and": 47,
     "moscap_delay_line": 48,
     "or": 49,
-    "buffer": 50
+    "buffer": 50,
+    "inv_chain": 51,
+    "strongarm_latch": 52,
+    "nand_4in": 53,
+    "nor_4in": 54,
+    "dynamic_latched_comparator": 55
 }

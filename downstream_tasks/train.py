@@ -26,14 +26,13 @@ def calculate_downstream_loss(out, batch, task_name):
     if task_name == "circuit_similarity_prediction":
         # out : (batch_size, 1), batch['labels'] : (batch_size, label_num)
         labels = batch['labels'].float()
-        sim = torch.mm(labels, labels[0].unsqueeze(-1))   # (batch_size, 1)
-        sim = torch.softmax(sim, dim=0).squeeze(-1)         # (batch_size,)
-        return -(sim*torch.log(out)).sum()
+        sim = torch.mm(labels[1:], labels[0].unsqueeze(-1))   # (batch_size, 1)
+        sim = torch.softmax(sim, dim=0).squeeze(-1)           # (batch_size,)
+        return -(sim*torch.log(out+1e-6)).sum()
 
     elif task_name == "circuit_label_prediction":
         # out : (batch_size, label_num), batch['labels'] : (batch_size, label_num)
-        labels = batch['labels'].float()
-        return -(labels*torch.log(out)).mean()
+        return -(batch['labels']*torch.log(out+1e-6)).mean()
 
     elif task_name == "delay_prediction":
         rise_delay = batch['minus_log_rise_delay']
@@ -72,32 +71,39 @@ def train(args):
     
     with open("./params.json", 'r') as f:
         params = json.load(f)
+    tau = args.tau.replace(".", ""); tau_tn = args.tautn.replace(".", "")
 
     ########################
     model = DownstreamModel(args, params['model'])
     model.apply(init_weights)
     if args.dice_depth > 0:
-        model.load_dice(f"./pretrain/encoder/saved_models/DICE_pretrained_model"\
+        model.load_dice(f"./pretrain/encoder/DICE_pretrained_model"
                         f"_{params['model']['encoder']['dice']['gnn_type']}"
-                        f"_depth{args.dice_depth}.pt")
+                        f"_depth{args.dice_depth}_tau{tau}_tautn{tau_tn}.pt")
     model.optimizer = torch.optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()),  # only update trainable params
-        lr=params['downstream_tasks']['train']['lr']
+        lr=params['downstream_tasks'][f'{args.task_name}']['train']['lr']
     )
-    model = model.to(params['downstream_tasks']['train']['device'])
+    model = model.to(params['downstream_tasks'][f'{args.task_name}']['train']['device'])
     ########################
     print()
     print("Model Initialized")
     print("training parameter num:", sum(p.numel() for p in model.parameters() if p.requires_grad))
     print()
-    model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
-                 f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
-                 f"_sGNN{args.s_gnn_depth}_seed{args.seed}"
+    if args.dice_depth == 0:
+        model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
+                    f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
+                    f"_sGNN{args.s_gnn_depth}_seed{args.seed}"
+    else:
+        model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
+                    f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
+                    f"_sGNN{args.s_gnn_depth}_tau{tau}_tautn{tau_tn}_seed{args.seed}"
+
 
     ### Wandb Initialization
     if args.wandb_log:
         config = {}
-        for key, value in params['downstream_tasks']['train'].items():
+        for key, value in params['downstream_tasks'][f'{args.task_name}']['train'].items():
             config[key] = value
 
         wandb.init(
@@ -111,13 +117,13 @@ def train(args):
     # training dataloader
     train_dataloader = GraphDataLoader(
         train_data,
-        batch_size=params['downstream_tasks']['train']['batch_size'],
+        batch_size=params['downstream_tasks'][f'{args.task_name}']['train']['batch_size'],
         shuffle=True
     )
     # validation dataloader
     val_dataloader = GraphDataLoader(
         val_data,
-        batch_size=params['downstream_tasks']['train']['batch_size'],
+        batch_size=params['downstream_tasks'][f'{args.task_name}']['train']['batch_size'],
         shuffle=False
     )
 
@@ -127,21 +133,17 @@ def train(args):
     print("val_data:", len(val_data))
     print()
 
-    # ----------------------
-    # Initialize GradScaler
-    # ----------------------
-    scaler = GradScaler()
-
     # Training
-    for epoch in range(int(params['downstream_tasks']['train']['epochs'])):
+    scaler = GradScaler()
+    for epoch in range(int(params['downstream_tasks'][f'{args.task_name}']['train']['epochs'])):
 
         model.train(); model.encoder.dice.eval()
         train_losses = []
         for train_batch in train_dataloader:
-            train_batch = send_to_device(train_batch, params['downstream_tasks']['train']["device"])
+            train_batch = send_to_device(train_batch, params['downstream_tasks'][f'{args.task_name}']['train']["device"])
             ############################
             model.optimizer.zero_grad()
-            with autocast(device_type=params['downstream_tasks']['train']["device"]):
+            with autocast(device_type=params['downstream_tasks'][f'{args.task_name}']['train']['device']):
                 out = model(train_batch)
                 train_loss = calculate_downstream_loss(out, train_batch, args.task_name)
             scaler.scale(train_loss).backward()
@@ -154,9 +156,9 @@ def train(args):
         val_losses = []
         with torch.no_grad():
             for val_batch in val_dataloader:
-                val_batch = send_to_device(val_batch, params['downstream_tasks']['train']["device"])
+                val_batch = send_to_device(val_batch, params['downstream_tasks'][f'{args.task_name}']['train']['device'])
                 ############################
-                with autocast(device_type=params['downstream_tasks']['train']["device"]):
+                with autocast(device_type=params['downstream_tasks'][f'{args.task_name}']['train']["device"]):
                     out = model(val_batch)
                     val_loss = calculate_downstream_loss(out, val_batch, args.task_name)
                 ############################
@@ -170,25 +172,27 @@ def train(args):
 
         print()
         print(
-            f"Epoch: {epoch}/{params['downstream_tasks']['train']['epochs']}\n"
+            f"Epoch: {epoch}/{params['downstream_tasks'][f'{args.task_name}']['train']['epochs']}\n"
             f"    Train Loss: {sum(train_losses)/len(train_losses)}\n"
             f"    Validation Loss: {sum(val_losses)/len(val_losses)}"
         )
 
-        if epoch % (int(params['downstream_tasks']['train']['epochs']) // 5) == 0:
+        if epoch % (int(params['downstream_tasks'][f'{args.task_name}']['train']['epochs']) // 5) == 0:
             model.save(f"./downstream_tasks/{args.task_name}/saved_models/{model_name}_epoch{epoch}.pt")
 
     if args.wandb_log: wandb.finish()
 
-    model.save(f"./downstream_tasks/{args.task_name}/saved_models/{model_name}.pt")
+    model.save(f"./downstream_tasks/{args.task_name}/{model_name}.pt")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task_name", type=str, default="delay_prediction")
+    parser.add_argument("--task_name", type=str, default="circuit_similarity_prediction")
     parser.add_argument("--dice_depth", type=int, default=0, help="depth for DICE")
     parser.add_argument("--p_gnn_depth", type=int, default=0, help="depth for Newly training parallel GNN")
     parser.add_argument("--s_gnn_depth", type=int, default=0, help="depth for Newly training series GNN")
+    parser.add_argument("--tau", type=str, default="0.1", help="tau value for DICE")
+    parser.add_argument("--tautn", type=str, default="0.1", help="tau_tn value for DICE")
     parser.add_argument("--wandb_log", default=0, type=int, help="Log to wandb")
     parser.add_argument("--seed", default=0, type=int, help="Seed for reproducibility")
     parser.add_argument("--gpu", type=int, default=0, help="CUDA device index")

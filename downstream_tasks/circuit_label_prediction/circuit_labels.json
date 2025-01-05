@@ -30,12 +30,15 @@
         "rlc_5",
         "rlc_6",
         "rlc_7",
-        "sourcefollower"
+        "sourcefollower",
+        "strongarm_latch",
+        "dynamic_latched_comparator"
     ],
     "digital": [
         "dff_nand",
         "half_adder",
         "inv",
+        "buffer",
         "mux_1",
         "nand",
         "nand_3in",
@@ -44,14 +47,12 @@
         "nor_3in",
         "or",
         "xor_opt",
-        "xor_passgate"
-    ],
-    "delay_lines": [
-        "capacitor_delay_line",
-        "capbank_delay_line",
-        "diode_delay_line",
-        "moscap_delay_line",
-        "starved_inverter_delay_line"
+        "xor_passgate",
+        "inv_chain",
+        "nand_4in",
+        "nor_4in",
+        "strongarm_latch",
+        "dynamic_latched_comparator"
     ],
     "amplifiers": [
         "alfio_raffc_pin_3_amp",
@@ -80,11 +81,9 @@
         "nor",
         "nor_3in",
         "xor_opt",
-        "xor_passgate"
-    ],
-    "oscillators": [
-        "osc_lowv_chaotic_colpitts",
-        "osc_rlc_cmos",
-        "osc_rlc_nmos"
+        "xor_passgate",
+        "inv_chain",
+        "nand_4in",
+        "nor_4in"
     ]
 }

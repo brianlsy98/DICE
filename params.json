@@ -5,33 +5,34 @@
             "dice": {
                 "nf_in_dim": 9, "ef_in_dim": 5, "hidden_dim": 512,
                 "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
-                "layer_num": 10, "activation": "gelu",
+                "layer_num": 5, "activation": "gelu",
                 "gnn_type": "GIN"
             },
             "parallel_gnn": {
                 "nf_in_dim": 9, "ef_in_dim": 5, "hidden_dim": 512,
                 "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
-                "layer_num": 3, "activation": "gelu",
+                "layer_num": 5, "activation": "gelu",
                 "gnn_type": "GIN"
             },
             "series_gnn": {
                 "nf_in_dim": 576, "ef_in_dim": 320, "hidden_dim": 512,
                 "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
-                "layer_num": 3, "activation": "gelu",
+                "layer_num": 5, "activation": "gelu",
                 "gnn_type": "GIN"
             }
         },
         "decoder": {
             "nf_in_dim": 576, "ef_in_dim": 320, "hidden_dim": 256,
-            "layer_num": 3, "activation": "gelu", "dropout": 0.3
+            "layer_num": 5, "activation": "gelu", "dropout": 0.3
         }
     },
     "pretraining": {
         "train": {
             "lr": 1e-5,
-            "epochs": 150,
-            "batch_size": 512,
-            "tau": 0.1,
+            "epochs": 200,
+            "batch_size": 1024,
+            "tau": 0.05,
+            "tau_tn": 0.05,
             "device": "cuda"
         },
         "test": {
@@ -39,16 +40,57 @@
         }
     },
     "downstream_tasks": {
-        "train": {
-            "lr": 1e-5,
-            "epochs": 100,
-            "batch_size": 1024,
-            "device": "cuda"
+        "circuit_label_prediction":{
+            "train": {
+                "lr": 3e-6,
+                "epochs": 50,
+                "batch_size": 1024,
+                "device": "cuda"
+            },
+            "test": {
+                "batch_size": 256,
+                "seeds": 10,
+                "device": "cuda"
+            }
         },
-        "test": {
-            "num_iterations": 10,
-            "batch_size": 64,
-            "device": "cuda"
+        "circuit_similarity_prediction":{
+            "train": {
+                "lr": 3e-5,
+                "epochs": 400,
+                "batch_size": 1024,
+                "device": "cuda"
+            },
+            "test": {
+                "batch_size": 3,
+                "seeds": 10,
+                "device": "cuda"
+            }
+        },
+        "delay_prediction":{
+            "train": {
+                "lr": 1e-4,
+                "epochs": 300,
+                "batch_size": 2048,
+                "device": "cuda"
+            },
+            "test": {
+                "batch_size": 256,
+                "seeds": 10,
+                "device": "cuda"
+            }
+        },
+        "opamp_metric_prediction":{
+            "train": {
+                "lr": 1e-4,
+                "epochs": 300,
+                "batch_size": 1024,
+                "device": "cuda"
+            },
+            "test": {
+                "batch_size": 512,
+                "seeds": 10,
+                "device": "cuda"
+            }
         }
     }
 }

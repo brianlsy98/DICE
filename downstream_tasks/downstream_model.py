@@ -143,23 +143,24 @@ class CircuitSimilarity_MLP(nn.Module):
                                       params['layer_num'], params['activation'], False, params['dropout'])
     # outputs (BatchSize,) shape matrix of similarity scores
     def forward(self, nf, ef, gf, batch):
-        base_gf = gf[0].unsqueeze(0)      # (1, gf_dim)
-        attn = base_gf * gf               # (BatchSize, gf_dim)
-        attn = self.attn_layer(attn)      # (BatchSize, 1)
-        output = F.softmax(attn, dim=0)   # (BatchSize, 1)
-        return output.squeeze(-1)         # (BatchSize,)
+        base_gf = gf[0].unsqueeze(0)             # (1, gf_dim)
+        attn = base_gf * gf[1:]                  # (BatchSize-1, gf_dim)
+        # attention: : 0~1 (sigmoid) value of similarity with respect to the first element
+        attn = F.sigmoid(self.attn_layer(attn))  # (BatchSize-1, 1)
+        output = F.softmax(attn, dim=0)          # (BatchSize-1, 1)
+        return output.squeeze(-1)                # (BatchSize-1,)
 
 
 
 class CircuitLabel_MLP(nn.Module):
     def __init__(self, params):
         super(CircuitLabel_MLP, self).__init__()
-        self.out_layer = build_layer(params['hidden_dim'], params['hidden_dim'], 6, # Dimension should change when number of label type changes
+        self.out_layer = build_layer(params['hidden_dim'], params['hidden_dim'], 4, # Dimension should change when number of label type changes
                                      params['layer_num'], params['activation'], True, params['dropout'])
-    # outputs (BatchSize, 6) shape matrix of label scores
+    # outputs (BatchSize, 4) shape matrix of label scores
     def forward(self, nf, ef, gf, batch):
-        output = self.out_layer(gf)       # (BatchSize, 6)
-        output = F.sigmoid(output)        # (BatchSize, 6)
+        output = self.out_layer(gf)       # (BatchSize, 4)
+        output = F.sigmoid(output)        # (BatchSize, 4)
         return output
 
 

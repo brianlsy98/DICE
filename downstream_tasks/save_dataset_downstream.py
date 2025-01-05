@@ -121,9 +121,9 @@ def add_simulation_results(graph, measurements, task_name):
 
 
 ###############################################################################################################
-# Generate Dataset for Downstream Task: Circuit Similarity Prediction
+# Generate Dataset for Downstream Task: Circuit Similarity Prediction, Circuit Label Prediction
 def gen_data_circuit_classification(args, circuit_dictionary):
-    graph_list = []
+    graph_list_train, graph_list_val, graph_list_test = [], [], []
 
     # Circuit Labels
     task_dir = f"./downstream_tasks/{args.task_name}"
@@ -133,15 +133,16 @@ def gen_data_circuit_classification(args, circuit_dictionary):
     print(circuit_labels)
     print()
 
-    # Task Circuits
-    task_circuits = os.listdir("./circuits/no_pretrain")\
+    # Task Circuits                          |-----> only for classification test
+    task_circuits = os.listdir("./circuits/downstreamtrain_nopretrain")\
                   + os.listdir("./circuits/pretrain")
 
     for circuit in tqdm(task_circuits):
-        if circuit in os.listdir("./circuits/no_pretrain"):
-            circuit_dir = f"./circuits/no_pretrain/{circuit}"
+        if circuit in os.listdir("./circuits/downstreamtrain_nopretrain"):
+            circuit_dir = f"./circuits/downstreamtrain_nopretrain/{circuit}"
         elif circuit in os.listdir("./circuits/pretrain"):
             circuit_dir = f"./circuits/pretrain/{circuit}"
+        else: raise ValueError("Invalid Circuit")
 
         # info from netlist template file
         circuit_name, node_names, nf, node_labels,\
@@ -167,23 +168,85 @@ def gen_data_circuit_classification(args, circuit_dictionary):
                 labels.append(0)
         graph.set_graph_attributes(labels=torch.tensor(labels, dtype=torch.long))
 
-        graphs = [graph]
+        train_graphs, val_graphs, test_graphs = [graph], [graph], [graph]
 
         # Data Augmentation
-        for _ in range(999):
-            g = random.choice(graphs)
+        # Train
+        for _ in range(int(args.augmentation_per_circuit*args.train_ratio)):
+            g = random.choice(train_graphs)
             new_graph = data_augmentation(g, "pos", 1)
-            graphs.extend(new_graph)
+            train_graphs.extend(new_graph)
+        # Val
+        for _ in range(int(args.augmentation_per_circuit*args.val_ratio)):
+            g = random.choice(val_graphs)
+            new_graph = data_augmentation(g, "pos", 1)
+            val_graphs.extend(new_graph)
+        # Test
+        for _ in range(int(args.augmentation_per_circuit*args.test_ratio)):
+            g = random.choice(test_graphs)
+            new_graph = data_augmentation(g, "pos", 1)
+            test_graphs.extend(new_graph)
 
-        graph_list.extend(graphs)
+        graph_list_train.extend(train_graphs)
+        graph_list_val.extend(val_graphs)
+        graph_list_test.extend(test_graphs)
 
-    return graph_list, circuit_dictionary
+
+    task_circuits_val_test = os.listdir("./circuits/untrained")
+    for circuit in tqdm(task_circuits_val_test):
+        if circuit in os.listdir("./circuits/untrained"):
+            circuit_dir = f"./circuits/untrained/{circuit}"
+        else: raise ValueError("Invalid Circuit")
+
+        # info from netlist template file
+        circuit_name, node_names, nf, node_labels,\
+        edge_indices, ef, edge_labels = parse_netlist(f'{circuit_dir}/netlist.cir')
+
+        ## Make Graph
+        graph = GraphData()
+        graph.set_node_attributes(torch.from_numpy(nf).float())
+        graph.set_node_labels(torch.from_numpy(node_labels).long())
+        graph.set_edge_attributes(torch.from_numpy(edge_indices).long(),
+                                torch.from_numpy(ef).float())
+        graph.set_edge_labels(torch.from_numpy(edge_labels).long())
+
+        if circuit_name not in list(circuit_dictionary.keys()):
+            circuit_dictionary[circuit_name] = len(circuit_dictionary)+1
+        graph.set_graph_attributes(circuit=torch.tensor(circuit_dictionary[circuit_name], dtype=torch.long))
+
+        labels = []
+        for label in circuit_labels.keys():
+            if circuit_name in circuit_labels[label]:
+                labels.append(1)
+            else:
+                labels.append(0)
+        graph.set_graph_attributes(labels=torch.tensor(labels, dtype=torch.long))
+
+        val_graphs, test_graphs = [graph], [graph]
+
+        # Data Augmentation
+        # Val
+        for _ in range(int(args.augmentation_per_circuit*args.val_ratio)):
+            g = random.choice(val_graphs)
+            new_graph = data_augmentation(g, "pos", 1)
+            val_graphs.extend(new_graph)
+        # Test
+        for _ in range(int(args.augmentation_per_circuit*args.test_ratio)):
+            g = random.choice(test_graphs)
+            new_graph = data_augmentation(g, "pos", 1)
+            test_graphs.extend(new_graph)
+
+        graph_list_val.extend(val_graphs)
+        graph_list_test.extend(test_graphs)
+
+
+    return graph_list_train, graph_list_val, graph_list_test, circuit_dictionary
 ###############################################################################################################
 
 
 
 ###############################################################################################################
-# Generate Dataset for Downstream Task: Delay Prediction
+# Generate Dataset for Downstream Task: Delay Prediction, Opamp Metric Prediction
 def gen_data_simresult_prediction(args, circuit_dictionary):
 
     graph_list = []
@@ -191,9 +254,9 @@ def gen_data_simresult_prediction(args, circuit_dictionary):
     task_dir = f"./downstream_tasks/{args.task_name}"
     task_circuits = os.listdir(f"{task_dir}/device_parameters")
 
-    for circuit in task_circuits[4:]:
-        if circuit in os.listdir("./circuits/no_pretrain"):
-            circuit_dir = f"./circuits/no_pretrain/{circuit}"
+    for circuit in task_circuits[0:]:
+        if circuit in os.listdir("./circuits/downstreamtrain_nopretrain"):
+            circuit_dir = f"./circuits/downstreamtrain_nopretrain/{circuit}"
         elif circuit in os.listdir("./circuits/pretrain"):
             circuit_dir = f"./circuits/pretrain/{circuit}"
         else: raise ValueError("Invalid Circuit")
@@ -253,7 +316,7 @@ def gen_data_simresult_prediction(args, circuit_dictionary):
                             measurements[key] = float(val_str)
                         except ValueError:
                             measurements[key] = val_str
-            # print(measurements)
+            print(measurements)
             ## Make Graph
             graph = GraphData()
             graph.set_node_attributes(torch.from_numpy(nf).float())
@@ -275,7 +338,8 @@ def gen_data_simresult_prediction(args, circuit_dictionary):
             graph = add_simulation_results(graph, measurements, args.task_name)
 
             # remove netlist.cir, sim.cir
-            os.remove(f"{task_dir}/netlist.cir")
+            if os.path.exists(f"{task_dir}/netlist.cir"):
+                os.remove(f"{task_dir}/netlist.cir")
 
             # go for another loop if simulation is not complete
             if incomplete_simulation(graph.graph_attrs, args.task_name): continue
@@ -286,7 +350,12 @@ def gen_data_simresult_prediction(args, circuit_dictionary):
         os.remove(f"{task_dir}/sim.cir")
         os.remove(f"./bsim4v5.out")
 
-    return graph_list, circuit_dictionary
+    random.shuffle(graph_list)
+    graph_list_train = graph_list[:int(len(graph_list)*args.train_ratio)]
+    graph_list_val = graph_list[int(len(graph_list)*args.train_ratio):int(len(graph_list)*(args.train_ratio+args.val_ratio))]
+    graph_list_test = graph_list[int(len(graph_list)*(args.train_ratio+args.val_ratio)):]
+
+    return graph_list_train, graph_list_val, graph_list_test, circuit_dictionary
 ###############################################################################################################
 
 
@@ -304,23 +373,19 @@ def generate_dataset(args):
     print()
     print(f"Generating dataset for {args.task_name}...")
     if args.task_name == "circuit_similarity_prediction" or args.task_name == "circuit_label_prediction":
-        graph_list, circuit_dictionary = gen_data_circuit_classification(args, circuit_dictionary)
+        graph_list_train, graph_list_val, graph_list_test, circuit_dictionary = gen_data_circuit_classification(args, circuit_dictionary)
     elif args.task_name == "delay_prediction" or args.task_name == "opamp_metric_prediction":
-        graph_list, circuit_dictionary = gen_data_simresult_prediction(args, circuit_dictionary)
+        graph_list_train, graph_list_val, graph_list_test, circuit_dictionary = gen_data_simresult_prediction(args, circuit_dictionary)
     else: raise ValueError("Invalid Task Name")
 
 
     # Save the dataset
-    random.shuffle(graph_list)
-    train_dataset = graph_list[:int(len(graph_list)*args.train_ratio)]
-    val_dataset = graph_list[int(len(graph_list)*args.train_ratio):int(len(graph_list)*(args.train_ratio+args.val_ratio))]
-    test_dataset = graph_list[int(len(graph_list)*(args.train_ratio+args.val_ratio)):]
-
+    random.shuffle(graph_list_train); random.shuffle(graph_list_val); random.shuffle(graph_list_test)
     path = f"./downstream_tasks/{args.task_name}"
     os.makedirs(path, exist_ok=True)
-    torch.save(train_dataset, f"{path}/{args.task_name}_train.pt")
-    torch.save(val_dataset, f"{path}/{args.task_name}_val.pt")
-    torch.save(test_dataset, f"{path}/{args.task_name}_test.pt")
+    torch.save(graph_list_train, f"{path}/{args.task_name}_train.pt")
+    torch.save(graph_list_val, f"{path}/{args.task_name}_val.pt")
+    torch.save(graph_list_test, f"{path}/{args.task_name}_test.pt")
 
 
     with open("./circuits/circuits.json", 'w') as f:
@@ -335,6 +400,7 @@ def generate_dataset(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--task_name", type=str, default="delay_prediction")
+    parser.add_argument("--augmentation_per_circuit", type=int, default=999)
     parser.add_argument("--train_ratio", type=float, default=0.8)
     parser.add_argument("--val_ratio", type=float, default=0.1)
     parser.add_argument("--test_ratio", type=float, default=0.1)

@@ -415,7 +415,7 @@ def build_layer(input_dim, hidden_dim, output_dim, num_layers,
 
 
 ########### Train Utils ############
-def set_seed(seed):
+def set_seed(seed, gpu_fix=True):
     """
     Set the seed for reproducibility in Python, NumPy, and PyTorch.
     Note: Full reproducibility is not guaranteed across different computing architectures.
@@ -426,8 +426,12 @@ def set_seed(seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     # For deterministic operations.
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    if gpu_fix:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    else:
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = True
 
 
 

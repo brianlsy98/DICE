@@ -1,0 +1,27 @@
+* Simulation for delay calculation
+
+.option TEMP = 27C
+.include './technology_files/45nm_bulk.txt'
+.include './downstream_tasks/delay_prediction/netlist.cir'
+
+xDL gnd vdd vin vout diode_delay_line
+
+VDD vdd 0 1
+* GND gnd 0 0 --> gnd is automatically converted to 0
+
+VIN vin 0 pulse(0 1 1u 10n 10n 0.99u 2u)
+* pulse(voltage_low, voltage_high, delay_time,
+*       rise_time, fall_time, pulse_width, period)
+
+.ic v(vin)=0 v(vout)=0
+
+.meas tran t_in_rise_edge when v(vin)=0.5 rise=1
+.meas tran t_out_rise_edge when v(vout)=0.5 rise=1
+.meas tran t_in_fall_edge when v(vin)=0.5 fall=1
+.meas tran t_out_fall_edge when v(vout)=0.5 fall=1
+
+.control
+tran 0.1u 10u
+.endc
+
+.END
