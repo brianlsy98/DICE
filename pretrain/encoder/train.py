@@ -50,7 +50,7 @@ def contrastive_learning_loss(gf, gf_labels, tau, tau_tn):
     if tau_tn == "None":
         gf_log_value_matrix = \
             gf_cosine_similarity - torch.log(
-                gs_exp.masked_fill(graph_label_equal, 0).sum(dim=1, keepdim=True)  # sum neg pairs
+                gs_exp.masked_fill(graph_label_equal|graph_label_true_negative, 0).sum(dim=1, keepdim=True)  # sum neg pairs
             )
     else:
         gf_log_value_matrix = \

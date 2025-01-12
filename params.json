@@ -32,7 +32,7 @@
             "epochs": 200,
             "batch_size": 1024,
             "tau": 0.05,
-            "tau_tn": 0.05,
+            "tau_tn": "None",
             "device": "cuda"
         },
         "test": {

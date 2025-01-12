@@ -77,7 +77,7 @@ def main():
     # Run t-SNE
     print("\nGraph embeddings t-SNE (initial)...")
     start = time.time()
-    tsne_graph_init = TSNE(n_components=2, random_state=42, perplexity=30, max_iter=1000)
+    tsne_graph_init = TSNE(n_components=2, random_state=98, perplexity=50, max_iter=3000)
     graph_embeddings_tsne_init = tsne_graph_init.fit_transform(initial_graph_embeddings)
     end = time.time()
     print(f"done in {end - start:.2f} seconds")
@@ -97,14 +97,16 @@ def main():
             s=15
         )
 
-    ax.set_title("Graph Embeddings t-SNE (Initial)")
-    ax.set_xlabel('Component 1')
-    ax.set_ylabel('Component 2')
+    # ax.set_title("Graph Embeddings t-SNE (Initial)")
+    # ax.set_xlabel('Component 1')
+    # ax.set_ylabel('Component 2')
     # ax.legend()
 
     # Save and show the plot
     plot_path = "./pretrain/encoder/plot/init_embeddings/init_embedding_gf.png"
     plt.tight_layout()
+    plt.xticks(visible=False)
+    plt.yticks(visible=False)
     plt.savefig(plot_path)
     plt.show()
 

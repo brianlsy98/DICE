@@ -23,16 +23,17 @@ from downstream_model import DownstreamModel
 
 def calculate_downstream_loss(out, batch, task_name):
 
-    if task_name == "circuit_similarity_prediction":
+    if task_name == "circuit_label_prediction":
+        # out : (batch_size, label_num), batch['labels'] : (batch_size, label_num)
+        return -(batch['labels']*torch.log(out+1e-6)).mean()
+
+    elif task_name == "circuit_similarity_prediction":
         # out : (batch_size, 1), batch['labels'] : (batch_size, label_num)
         labels = batch['labels'].float()
         sim = torch.mm(labels[1:], labels[0].unsqueeze(-1))   # (batch_size, 1)
         sim = torch.softmax(sim, dim=0).squeeze(-1)           # (batch_size,)
         return -(sim*torch.log(out+1e-6)).sum()
 
-    elif task_name == "circuit_label_prediction":
-        # out : (batch_size, label_num), batch['labels'] : (batch_size, label_num)
-        return -(batch['labels']*torch.log(out+1e-6)).mean()
 
     elif task_name == "delay_prediction":
         rise_delay = batch['minus_log_rise_delay']
@@ -191,8 +192,8 @@ if __name__ == "__main__":
     parser.add_argument("--dice_depth", type=int, default=0, help="depth for DICE")
     parser.add_argument("--p_gnn_depth", type=int, default=0, help="depth for Newly training parallel GNN")
     parser.add_argument("--s_gnn_depth", type=int, default=0, help="depth for Newly training series GNN")
-    parser.add_argument("--tau", type=str, default="0.1", help="tau value for DICE")
-    parser.add_argument("--tautn", type=str, default="0.1", help="tau_tn value for DICE")
+    parser.add_argument("--tau", type=str, default="0.05", help="tau value for DICE")
+    parser.add_argument("--tautn", type=str, default="0.05", help="tau_tn value for DICE")
     parser.add_argument("--wandb_log", default=0, type=int, help="Log to wandb")
     parser.add_argument("--seed", default=0, type=int, help="Seed for reproducibility")
     parser.add_argument("--gpu", type=int, default=0, help="CUDA device index")

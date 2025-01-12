@@ -101,7 +101,7 @@ def main(args):
     # Run t-SNE
     print(f"\nGraph embeddings t-SNE (trained, tau{tau}, tautn{tautn})...")
     start = time.time()
-    tsne = TSNE(n_components=2, random_state=42, perplexity=30, max_iter=1000)
+    tsne = TSNE(n_components=2, random_state=98, perplexity=50, max_iter=3000)
     graph_embeddings_tsne_trained = tsne.fit_transform(trained_graph_embeddings)
     end = time.time()
     print(f"done in {end - start:.2f} seconds")
@@ -123,9 +123,9 @@ def main(args):
             s=15
         )
 
-    ax.set_title(f"DICE ({model_params['gnn_type']}) Graph Embeddings t-SNE (trained)")
-    ax.set_xlabel('Component 1')
-    ax.set_ylabel('Component 2')
+    # ax.set_title(f"DICE ({model_params['gnn_type']}) Graph Embeddings t-SNE (trained)")
+    # ax.set_xlabel('Component 1')
+    # ax.set_ylabel('Component 2')
 
     # Optionally enable the legend if you want to see label names
     # ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
@@ -133,13 +133,15 @@ def main(args):
     # Save and show the plot
     plot_path = f"./pretrain/encoder/plot/trained_gnn_embeddings/tsne_trained_{model_params['gnn_type']}_depth{args.gnn_depth}_tau{tau}_tautn{tautn}_gf.png"
     plt.tight_layout()
+    plt.xticks(visible=False)
+    plt.yticks(visible=False)
     plt.savefig(plot_path)
     plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Plot trained graph embeddings using t-SNE')
-    parser.add_argument('--tau', type=str, default="0.5", help='Temperature parameter for contrastive loss')
-    parser.add_argument('--tautn', type=str, default="0.5", help='Temperature parameter for contrastive loss (negative samples)')
+    parser.add_argument('--tau', type=str, default="0.05", help='Temperature parameter for contrastive loss')
+    parser.add_argument('--tautn', type=str, default="0.05", help='Temperature parameter for contrastive loss (negative samples)')
     parser.add_argument('--gnn_depth', type=int, default=2, help='GNN depth for the Encoder')
     parser.add_argument('--seed', type=int, default=0, help='Seed for reproducibility')
     args = parser.parse_args()

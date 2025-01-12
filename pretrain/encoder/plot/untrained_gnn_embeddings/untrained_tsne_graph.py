@@ -89,7 +89,7 @@ def main(args):
     # Run t-SNE
     print("\nGraph embeddings t-SNE (untrained)...")
     start = time.time()
-    tsne_graph_untrained = TSNE(n_components=2, random_state=42, perplexity=30, max_iter=1000)
+    tsne_graph_untrained = TSNE(n_components=2, random_state=98, perplexity=50, max_iter=3000)
     graph_embeddings_tsne_untrained = tsne_graph_untrained.fit_transform(untrained_graph_embeddings)
     end = time.time()
     print(f"done in {end - start:.2f} seconds")
@@ -111,9 +111,9 @@ def main(args):
             s=15
         )
 
-    ax.set_title(f"DICE ({model_params['gnn_type']}) Graph Embeddings t-SNE (untrained)")
-    ax.set_xlabel('Component 1')
-    ax.set_ylabel('Component 2')
+    # ax.set_title(f"DICE ({model_params['gnn_type']}) Graph Embeddings t-SNE (untrained)")
+    # ax.set_xlabel('Component 1')
+    # ax.set_ylabel('Component 2')
 
     # If you want to show a legend of labels (note that 50 might be quite large):
     # ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
@@ -124,11 +124,13 @@ def main(args):
         f"tsne_untrained_{model_params['gnn_type']}_depth{args.gnn_depth}_gf.png"
     )
     plt.tight_layout()
+    plt.xticks(visible=False)
+    plt.yticks(visible=False)
     plt.savefig(plot_path)
     plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Plot untrained graph embeddings using t-SNE with up to 50 labels')
-    parser.add_argument('--gnn_depth', type=int, default=3, help='GNN depth for the Encoder')
+    parser.add_argument('--gnn_depth', type=int, default=2, help='GNN depth for the Encoder')
     args = parser.parse_args()
     main(args)

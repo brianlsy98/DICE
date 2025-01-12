@@ -95,8 +95,8 @@ def add_simulation_results(graph, measurements, task_name):
             return graph
         rise_delay = measurements['t_out_rise_edge'] - measurements['t_in_rise_edge']
         fall_delay = measurements['t_out_fall_edge'] - measurements['t_in_fall_edge']
-        minus_log_rise_delay = -torch.log(torch.tensor(rise_delay, dtype=torch.float16))
-        minus_log_fall_delay = -torch.log(torch.tensor(fall_delay, dtype=torch.float16))
+        minus_log_rise_delay = -torch.log(torch.tensor(rise_delay, dtype=torch.float32))
+        minus_log_fall_delay = -torch.log(torch.tensor(fall_delay, dtype=torch.float32))
         graph.set_graph_attributes(minus_log_rise_delay=minus_log_rise_delay,
                                    minus_log_fall_delay=minus_log_fall_delay)
     elif task_name == "opamp_metric_prediction":
@@ -316,7 +316,7 @@ def gen_data_simresult_prediction(args, circuit_dictionary):
                             measurements[key] = float(val_str)
                         except ValueError:
                             measurements[key] = val_str
-            print(measurements)
+            # print(measurements)
             ## Make Graph
             graph = GraphData()
             graph.set_node_attributes(torch.from_numpy(nf).float())
@@ -342,7 +342,8 @@ def gen_data_simresult_prediction(args, circuit_dictionary):
                 os.remove(f"{task_dir}/netlist.cir")
 
             # go for another loop if simulation is not complete
-            if incomplete_simulation(graph.graph_attrs, args.task_name): continue
+            if incomplete_simulation(graph.graph_attrs, args.task_name):
+                continue
 
             graph_list.append(graph)
 

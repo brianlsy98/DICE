@@ -136,6 +136,19 @@ class DownstreamEncoder(nn.Module):
 ############################################################################################################
 # DECODER for Task 1, 2 : Circuit Similarity Prediction, Circuit Label Prediction
 ############################################################################################################
+
+class CircuitLabel_MLP(nn.Module):
+    def __init__(self, params):
+        super(CircuitLabel_MLP, self).__init__()
+        self.out_layer = build_layer(params['hidden_dim'], params['hidden_dim'], 2, # Dimension should change when number of label type changes
+                                     params['layer_num'], params['activation'], True, params['dropout'])
+    # outputs (BatchSize, 2) shape matrix of label scores
+    def forward(self, nf, ef, gf, batch):
+        output = self.out_layer(gf)       # (BatchSize, 4)
+        output = F.sigmoid(output)        # (BatchSize, 4)
+        return output
+
+
 class CircuitSimilarity_MLP(nn.Module):
     def __init__(self, params):
         super(CircuitSimilarity_MLP, self).__init__()
@@ -149,20 +162,6 @@ class CircuitSimilarity_MLP(nn.Module):
         attn = F.sigmoid(self.attn_layer(attn))  # (BatchSize-1, 1)
         output = F.softmax(attn, dim=0)          # (BatchSize-1, 1)
         return output.squeeze(-1)                # (BatchSize-1,)
-
-
-
-class CircuitLabel_MLP(nn.Module):
-    def __init__(self, params):
-        super(CircuitLabel_MLP, self).__init__()
-        self.out_layer = build_layer(params['hidden_dim'], params['hidden_dim'], 4, # Dimension should change when number of label type changes
-                                     params['layer_num'], params['activation'], True, params['dropout'])
-    # outputs (BatchSize, 4) shape matrix of label scores
-    def forward(self, nf, ef, gf, batch):
-        output = self.out_layer(gf)       # (BatchSize, 4)
-        output = F.sigmoid(output)        # (BatchSize, 4)
-        return output
-
 
 
 class CircuitClassificationModel(nn.Module):

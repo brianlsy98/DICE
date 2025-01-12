@@ -24,7 +24,13 @@ from downstream_model import DownstreamModel
 
 def get_test_info(out, batch, task_name):
 
-    if task_name == "circuit_similarity_prediction":
+    if task_name == "circuit_label_prediction":
+        # out : (batch_size, label_num), batch['labels'] : (batch_size, label_num)
+        prediction = torch.round(out)
+        accuracies = (prediction == batch['labels']).float()
+        return accuracies
+
+    elif task_name == "circuit_similarity_prediction":
         # out: (batch_size, 1)
         # batch['labels']: (batch_size, label_num)
         labels = batch['labels'].float()  # (batch_size, label_num)
@@ -50,12 +56,6 @@ def get_test_info(out, batch, task_name):
         accuracy = correct_pairs / total_pairs
         return torch.tensor([accuracy], dtype=torch.float16, device=out.device)
 
-    elif task_name == "circuit_label_prediction":
-        # out : (batch_size, label_num), batch['labels'] : (batch_size, label_num)
-        prediction = torch.round(out)
-        accuracies = (prediction == batch['labels']).float()
-        return accuracies
-    
     elif task_name == "delay_prediction":
         rise_delay = batch['minus_log_rise_delay']
         fall_delay = batch['minus_log_fall_delay']
@@ -82,18 +82,14 @@ def get_test_info(out, batch, task_name):
 def process_info_seed(test_infos, seed, params, print_info=1):
 
     if args.task_name == "circuit_label_prediction":
-        analog_acc = 100*test_infos[:, 0].mean().item()
-        digital_acc = 100*test_infos[:, 1].mean().item()
-        amplifiers_acc = 100*test_infos[:, 2].mean().item()
-        logic_gates_acc = 100*test_infos[:, 3].mean().item()
+        amplifiers_acc = 100*test_infos[:, 0].mean().item()
+        logic_gates_acc = 100*test_infos[:, 1].mean().item()
         if print_info:
             print()
             print(f"Seed: {seed}/{params['downstream_tasks'][f'{args.task_name}']['test']['seeds']}")
-            print(f"Label (Analog) Accuracy     : {analog_acc:.2f}%")
-            print(f"Label (Digital) Accuracy    : {digital_acc:.2f}%")
             print(f"Label (Amplifiers) Accuracy : {amplifiers_acc:.2f}%")
             print(f"Label (Logic Gates) Accuracy: {logic_gates_acc:.2f}%")
-        return torch.tensor([analog_acc, digital_acc, amplifiers_acc, logic_gates_acc])
+        return torch.tensor([amplifiers_acc, logic_gates_acc])
 
     elif args.task_name == "circuit_similarity_prediction":
         acc = 100*test_infos.mean().item()
@@ -138,10 +134,8 @@ def print_info(infos):
     if args.task_name == "circuit_label_prediction":
         mean, std = infos.mean(dim=0), infos.std(dim=0)
         print("############# Label Prediction #############")
-        print(f"Label (Analog) Accuracy     : {mean[0]:.2f}% ± {std[0]:.2f}")
-        print(f"Label (Digital) Accuracy    : {mean[1]:.2f}% ± {std[1]:.2f}")
-        print(f"Label (Amplifiers) Accuracy : {mean[2]:.2f}% ± {std[2]:.2f}")
-        print(f"Label (Logic Gates) Accuracy: {mean[3]:.2f}% ± {std[3]:.2f}")
+        print(f"Label (Amplifiers) Accuracy : {mean[0]:.2f}% ± {std[0]:.2f}")
+        print(f"Label (Logic Gates) Accuracy: {mean[1]:.2f}% ± {std[1]:.2f}")
         print("############################################")
 
     elif args.task_name == "circuit_similarity_prediction":
