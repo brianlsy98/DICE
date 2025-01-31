@@ -2,6 +2,7 @@ __pycache__
 *.txt
 *.pt
 wandb
-baselines
+*_pda.py
 plots
 *_prev.py
+baselines
