@@ -74,7 +74,7 @@ def test_model(args):
     untrained_model.apply(init_weights)
     # trained model with only positive data augmentation
     trained_model_pda = DICE(params['model']['encoder']['dice'], gnn_depth=args.gnn_depth)
-    trained_model_pda.load(f"./pretrain/encoder/DICE_pretrained_model_GIN_depth2_taup02tau005taun005_pda.pt")
+    trained_model_pda.load(f"./pretrain/encoder/DICE_pretrained_model_GIN_depth2_taup02tau005taun005.pt")
     # trained model with neg data augmentation
     trained_model = DICE(params['model']['encoder']['dice'], gnn_depth=args.gnn_depth)
     trained_model.load(f"./pretrain/encoder/DICE_pretrained_model_GIN_depth2_taup02tau005taun005.pt")
@@ -152,19 +152,19 @@ def test_model(args):
     print("Positive Pairs")
     print("Init:", init_cs_values_p.mean().item(), init_cs_values_p.std().item())
     print("U   :", untrained_cs_values_p.mean().item(), untrained_cs_values_p.std().item())
-    print("Tpda:", trained_w_cs_values_pda_p.mean().item(), trained_w_cs_values_pda_p.std().item())
+    # print("Tpda:", trained_w_cs_values_pda_p.mean().item(), trained_w_cs_values_pda_p.std().item())
     print("T   :", trained_w_cs_values_p.mean().item(), trained_w_cs_values_p.std().item())
     print()
     print("Non-Positive Pairs")
     print("Init:", init_cs_values_np.mean().item(), init_cs_values_np.std().item())
     print("U   :", untrained_cs_values_np.mean().item(), untrained_cs_values_np.std().item())
-    print("Tpda:", trained_w_cs_values_pda_np.mean().item(), trained_w_cs_values_pda_np.std().item())
+    # print("Tpda:", trained_w_cs_values_pda_np.mean().item(), trained_w_cs_values_pda_np.std().item())
     print("T   :", trained_w_cs_values_np.mean().item(), trained_w_cs_values_np.std().item())
     print()
     print("Negative Pairs")
     print("Init:", init_cs_values_n.mean().item(), init_cs_values_n.std().item())
     print("U   :", untrained_cs_values_n.mean().item(), untrained_cs_values_n.std().item())
-    print("Tpda:", trained_w_cs_values_pda_n.mean().item(), trained_w_cs_values_pda_n.std().item())
+    # print("Tpda:", trained_w_cs_values_pda_n.mean().item(), trained_w_cs_values_pda_n.std().item())
     print("T   :", trained_w_cs_values_n.mean().item(), trained_w_cs_values_n.std().item())
 
 

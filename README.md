@@ -59,7 +59,7 @@ Processes data augmentation and saves dataset for pretraining.
 ```bash
 python pretrain/encoder/train.py
 ```
-Trains the GNN encoder using a contrastive learning framework.
+Trains the DICE with graph contrastive learning.
 
 ### Plot t-SNE
 ```bash
@@ -71,7 +71,7 @@ Generates a t-SNE visualization of the graph embeddings process by DICE.
 ```bash
 python pretrain/encoder/test.py
 ```
-Evaluates the pretrained model.
+Calculates the cosine similarities between features from the pretrained model.
 
 ---
 
