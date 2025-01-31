@@ -170,22 +170,22 @@ def gen_data_circuit_classification(args, circuit_dictionary):
 
         train_graphs, val_graphs, test_graphs = [graph], [graph], [graph]
 
-        # Data Augmentation
-        # Train
-        for _ in range(int(args.augmentation_per_circuit*args.train_ratio)):
-            g = random.choice(train_graphs)
-            new_graph = data_augmentation(g, "pos", 1)
-            train_graphs.extend(new_graph)
-        # Val
-        for _ in range(int(args.augmentation_per_circuit*args.val_ratio)):
-            g = random.choice(val_graphs)
-            new_graph = data_augmentation(g, "pos", 1)
-            val_graphs.extend(new_graph)
-        # Test
-        for _ in range(int(args.augmentation_per_circuit*args.test_ratio)):
-            g = random.choice(test_graphs)
-            new_graph = data_augmentation(g, "pos", 1)
-            test_graphs.extend(new_graph)
+        # # Data Augmentation
+        # # Train
+        # for _ in range(int(args.augmentation_per_circuit*args.train_ratio)):
+        #     g = random.choice(train_graphs)
+        #     new_graph = data_augmentation(g, "pos", 1)
+        #     train_graphs.extend(new_graph)
+        # # Val
+        # for _ in range(int(args.augmentation_per_circuit*args.val_ratio)):
+        #     g = random.choice(val_graphs)
+        #     new_graph = data_augmentation(g, "pos", 1)
+        #     val_graphs.extend(new_graph)
+        # # Test
+        # for _ in range(int(args.augmentation_per_circuit*args.test_ratio)):
+        #     g = random.choice(test_graphs)
+        #     new_graph = data_augmentation(g, "pos", 1)
+        #     test_graphs.extend(new_graph)
 
         graph_list_train.extend(train_graphs)
         graph_list_val.extend(val_graphs)
@@ -226,15 +226,15 @@ def gen_data_circuit_classification(args, circuit_dictionary):
 
         # Data Augmentation
         # Val
-        for _ in range(int(args.augmentation_per_circuit*args.val_ratio)):
-            g = random.choice(val_graphs)
-            new_graph = data_augmentation(g, "pos", 1)
-            val_graphs.extend(new_graph)
-        # Test
-        for _ in range(int(args.augmentation_per_circuit*args.test_ratio)):
-            g = random.choice(test_graphs)
-            new_graph = data_augmentation(g, "pos", 1)
-            test_graphs.extend(new_graph)
+        # for _ in range(int(args.augmentation_per_circuit*args.val_ratio)):
+        #     g = random.choice(val_graphs)
+        #     new_graph = data_augmentation(g, "pos", 1)
+        #     val_graphs.extend(new_graph)
+        # # Test
+        # for _ in range(int(args.augmentation_per_circuit*args.test_ratio)):
+        #     g = random.choice(test_graphs)
+        #     new_graph = data_augmentation(g, "pos", 1)
+        #     test_graphs.extend(new_graph)
 
         graph_list_val.extend(val_graphs)
         graph_list_test.extend(test_graphs)
@@ -373,7 +373,7 @@ def generate_dataset(args):
     ### Generate Dataset
     print()
     print(f"Generating dataset for {args.task_name}...")
-    if args.task_name == "circuit_similarity_prediction" or args.task_name == "circuit_label_prediction":
+    if args.task_name == "circuit_similarity_prediction":
         graph_list_train, graph_list_val, graph_list_test, circuit_dictionary = gen_data_circuit_classification(args, circuit_dictionary)
     elif args.task_name == "delay_prediction" or args.task_name == "opamp_metric_prediction":
         graph_list_train, graph_list_val, graph_list_test, circuit_dictionary = gen_data_simresult_prediction(args, circuit_dictionary)
@@ -384,6 +384,7 @@ def generate_dataset(args):
     random.shuffle(graph_list_train); random.shuffle(graph_list_val); random.shuffle(graph_list_test)
     path = f"./downstream_tasks/{args.task_name}"
     os.makedirs(path, exist_ok=True)
+
     torch.save(graph_list_train, f"{path}/{args.task_name}_train.pt")
     torch.save(graph_list_val, f"{path}/{args.task_name}_val.pt")
     torch.save(graph_list_test, f"{path}/{args.task_name}_test.pt")
@@ -401,7 +402,7 @@ def generate_dataset(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--task_name", type=str, default="delay_prediction")
-    parser.add_argument("--augmentation_per_circuit", type=int, default=999)
+    # parser.add_argument("--augmentation_per_circuit", type=int, default=99)
     parser.add_argument("--train_ratio", type=float, default=0.8)
     parser.add_argument("--val_ratio", type=float, default=0.1)
     parser.add_argument("--test_ratio", type=float, default=0.1)

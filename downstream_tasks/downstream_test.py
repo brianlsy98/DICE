@@ -20,41 +20,31 @@ from dataloader import GraphDataLoader
 
 from downstream_model import DownstreamModel
 
-
+import itertools
 
 def get_test_info(out, batch, task_name):
 
-    if task_name == "circuit_label_prediction":
-        # out : (batch_size, label_num), batch['labels'] : (batch_size, label_num)
-        prediction = torch.round(out)
-        accuracies = (prediction == batch['labels']).float()
-        return accuracies
+    if task_name == "circuit_similarity_prediction":
 
-    elif task_name == "circuit_similarity_prediction":
-        # out: (batch_size, 1)
-        # batch['labels']: (batch_size, label_num)
-        labels = batch['labels'].float()  # (batch_size, label_num)
-        batch_size = labels.size(0)
+        permutations = list(itertools.permutations(range(batch['batch'].max().item() + 1), 2))  # (N, 2)
+        N = len(permutations)
+        indices = torch.tensor(permutations).to(out.device)
 
-        sim = torch.mm(labels[1:], labels[0].unsqueeze(-1))   # (batch_size-1, 1)
-        sim = torch.softmax(sim, dim=0).squeeze(-1)           # (batch_size-1,)
+        target_label = batch['labels'][0].view(1, 1, -1)  # (1, 1, label_num)
+        labels = batch['labels'][indices,:].view(N, 2, -1)  # (N, 2, label_num)
 
-        out_squeezed = out.squeeze(-1)  # (batch_size-1,)
+        comparison = torch.sum(target_label * labels, dim=-1)  # (N, 2)
 
-        correct_pairs = 0
-        total_pairs = 0
+        left_is_less = (comparison[:,0] < comparison[:,1]).long()
+        equal = (comparison[:,0] == comparison[:,1]).long()
+        left_is_greater = (comparison[:,0] > comparison[:,1]).long()
 
-        for i in range(batch_size-1):
-            for j in range(i+1, batch_size-1):
+        target = equal + 2 * left_is_greater    # (N, )
 
-                if sim[i] == sim[j] and abs(out_squeezed[i] - out_squeezed[j]) < 0.1/(batch_size-1): correct_pairs += 1
-                elif sim[i] > sim[j] and out_squeezed[i] > out_squeezed[j]: correct_pairs += 1
-                elif sim[i] < sim[j] and out_squeezed[i] < out_squeezed[j]: correct_pairs += 1
+        accuracy = torch.mean((torch.argmax(out, dim=1) == target).float()).unsqueeze(0)
 
-                total_pairs += 1
-        
-        accuracy = correct_pairs / total_pairs
-        return torch.tensor([accuracy], dtype=torch.float16, device=out.device)
+        return accuracy
+
 
     elif task_name == "delay_prediction":
         rise_delay = batch['minus_log_rise_delay']
@@ -79,34 +69,22 @@ def get_test_info(out, batch, task_name):
 
 
 
-def process_info_seed(test_infos, seed, params, print_info=1):
+def process_info_seed(args, test_infos, seed, params):
 
-    if args.task_name == "circuit_label_prediction":
-        amplifiers_acc = 100*test_infos[:, 0].mean().item()
-        logic_gates_acc = 100*test_infos[:, 1].mean().item()
-        if print_info:
-            print()
-            print(f"Seed: {seed}/{params['downstream_tasks'][f'{args.task_name}']['test']['seeds']}")
-            print(f"Label (Amplifiers) Accuracy : {amplifiers_acc:.2f}%")
-            print(f"Label (Logic Gates) Accuracy: {logic_gates_acc:.2f}%")
-        return torch.tensor([amplifiers_acc, logic_gates_acc])
-
-    elif args.task_name == "circuit_similarity_prediction":
+    if args.task_name == "circuit_similarity_prediction":
         acc = 100*test_infos.mean().item()
-        if print_info:
+        if args.print_info:
             print()
-            print(f"Seed: {seed}/{params['downstream_tasks'][f'{args.task_name}']['test']['seeds']}")
             print(f"Similarity Prediction Accuracy: {acc:.2f}%")
         return torch.tensor([acc])
 
     elif args.task_name == "delay_prediction":
         r2_score_rise_delay = r2_score(test_infos[:, 0], test_infos[:, 2])
         r2_score_fall_delay = r2_score(test_infos[:, 1], test_infos[:, 3])
-        if print_info:
+        if args.print_info:
             print()
-            print(f"Seed: {seed}/{params['downstream_tasks'][f'{args.task_name}']['test']['seeds']}")
-            print(f"Rise Delay R2 Score: {r2_score_rise_delay:.2f}")
-            print(f"Fall Delay R2 Score: {r2_score_fall_delay:.2f}")
+            print(f"Rise Delay R2 Score: {r2_score_rise_delay:.4f}")
+            print(f"Fall Delay R2 Score: {r2_score_fall_delay:.4f}")
         return torch.tensor([r2_score_rise_delay, r2_score_fall_delay])
 
     elif args.task_name == "opamp_metric_prediction":
@@ -115,30 +93,22 @@ def process_info_seed(test_infos, seed, params, print_info=1):
         r2_score_cmrr_dc = r2_score(test_infos[:, 2], test_infos[:, 7])
         r2_score_gain_dc = r2_score(test_infos[:, 3], test_infos[:, 8])
         r2_score_vddpsrr_dc = r2_score(test_infos[:, 4], test_infos[:, 9])
-        if print_info:
+        if args.print_info:
             print()
-            print(f"Seed: {seed}/{params['downstream_tasks'][f'{args.task_name}']['test']['seeds']}")
-            print(f"Power R2 Score: {r2_score_power:.2f}")
-            print(f"Voutdc-Vindc R2 Score: {r2_score_voutdc_minus_vindc:.2f}")
-            print(f"CMRR R2 Score: {r2_score_cmrr_dc:.2f}")
-            print(f"Gain R2 Score: {r2_score_gain_dc:.2f}")
-            print(f"Vddpsrr R2 Score: {r2_score_vddpsrr_dc:.2f}")
+            print(f"Power R2 Score: {r2_score_power:.4f}")
+            print(f"Voutdc-Vindc R2 Score: {r2_score_voutdc_minus_vindc:.4f}")
+            print(f"CMRR R2 Score: {r2_score_cmrr_dc:.4f}")
+            print(f"Gain R2 Score: {r2_score_gain_dc:.4f}")
+            print(f"Vddpsrr R2 Score: {r2_score_vddpsrr_dc:.4f}")
         return torch.tensor([r2_score_power, r2_score_voutdc_minus_vindc, r2_score_cmrr_dc, r2_score_gain_dc, r2_score_vddpsrr_dc])
 
     else: raise ValueError("Invalid Subtask Name")
 
 
 
-def print_info(infos):
+def print_info(args, infos):
 
-    if args.task_name == "circuit_label_prediction":
-        mean, std = infos.mean(dim=0), infos.std(dim=0)
-        print("############# Label Prediction #############")
-        print(f"Label (Amplifiers) Accuracy : {mean[0]:.2f}% ± {std[0]:.2f}")
-        print(f"Label (Logic Gates) Accuracy: {mean[1]:.2f}% ± {std[1]:.2f}")
-        print("############################################")
-
-    elif args.task_name == "circuit_similarity_prediction":
+    if args.task_name == "circuit_similarity_prediction":
         mean, std = infos.mean(dim=0), infos.std(dim=0)
         print("############# Similarity Prediction #############")
         print(f"Similarity Prediction Accuracy: {mean[0]:.2f}% ± {std[0]:.2f}")
@@ -147,8 +117,8 @@ def print_info(infos):
     elif args.task_name == "delay_prediction":
         mean, std = infos.mean(dim=0), infos.std(dim=0)
         print("############# Delay Prediction #############")
-        print(f"Rise Delay R2 Score: {mean[0]:.2f} ± {std[0]:.2f}")
-        print(f"Fall Delay R2 Score: {mean[1]:.2f} ± {std[1]:.2f}")
+        print(f"Rise Delay R2 Score: {mean[0]:.4f} ± {std[0]:.4f}")
+        print(f"Fall Delay R2 Score: {mean[1]:.4f} ± {std[1]:.4f}")
         print("############################################")
 
     elif args.task_name == "opamp_metric_prediction":
@@ -169,7 +139,7 @@ def test(args):
 
     with open("./params.json", 'r') as f:
         params = json.load(f)
-    tau = args.tau.replace(".", ""); tau_tn = args.tautn.replace(".", "")
+    taup=args.taup.replace(".", ""); tau=args.tau.replace(".", ""); taun = args.taun.replace(".", "")
 
     ### Dataset
     test_data = torch.load(f'./downstream_tasks/{args.task_name}/{args.task_name}_test.pt')
@@ -197,11 +167,16 @@ def test(args):
                         f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
                         f"_sGNN{args.s_gnn_depth}_seed{args.trained_model_seed}"
     else:
-        model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
+        if not args.pda:
+            model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
                         f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
-                        f"_sGNN{args.s_gnn_depth}_tau{tau}_tautn{tau_tn}_seed{args.trained_model_seed}"
+                        f"_sGNN{args.s_gnn_depth}_taup{taup}tau{tau}taun{taun}_seed{args.trained_model_seed}"
+        elif args.pda:
+            model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
+                            f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
+                            f"_sGNN{args.s_gnn_depth}_taup{taup}tau{tau}taun{taun}_pda_seed{args.trained_model_seed}"
     model.apply(init_weights)
-    model.load(f"./downstream_tasks/{args.task_name}/{model_name}.pt")
+    model.load(f"./downstream_tasks/{args.task_name}/saved_models/{model_name}.pt")
     model = model.to(params['downstream_tasks'][f'{args.task_name}']['test']['device'])
     model.eval()
     ########################
@@ -213,7 +188,7 @@ def test(args):
 
     infos = []
     ### Test
-    for s in range(params['downstream_tasks'][f'{args.task_name}']['test']['seeds']):
+    for s in params['downstream_tasks'][f'{args.task_name}']['test']['seeds']:
 
         os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
         set_seed(s, False)
@@ -230,10 +205,10 @@ def test(args):
                 ############################
                 test_infos.append(test_info)
         test_infos = torch.concat(test_infos, dim=0)
-        infos.append(process_info_seed(test_infos, s, params, print_info=args.print_info))
+        infos.append(process_info_seed(args, test_infos, s, params))
 
     infos = torch.stack(infos, dim=0)
-    print_info(infos)
+    print_info(args, infos)
     print()
 
 
@@ -243,8 +218,10 @@ if __name__ == "__main__":
     parser.add_argument("--dice_depth", type=int, default=0, help="depth for DICE")
     parser.add_argument("--p_gnn_depth", type=int, default=0, help="depth for parallel GNN")
     parser.add_argument("--s_gnn_depth", type=int, default=0, help="depth for series GNN")
+    parser.add_argument("--taup", type=str, default="0.2", help="taup value for DICE")
     parser.add_argument("--tau", type=str, default="0.05", help="tau value for DICE")
-    parser.add_argument("--tautn", type=str, default="0.05", help="tau_tn value for DICE")
+    parser.add_argument("--taun", type=str, default="0.05", help="taun value for DICE")
+    parser.add_argument("--pda", type=int, default=0, help="Only using positive data augmentation")
     parser.add_argument("--trained_model_seed", type=int, default=0, help="Seed for trained model")
     parser.add_argument("--gpu", type=int, default=0, help="CUDA device index")
     parser.add_argument("--print_info", type=int, default=1, help="Print information")

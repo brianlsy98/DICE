@@ -14,10 +14,10 @@ from utils import build_layer, init_weights
 
 
 class GATlayer(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, activation, bias):
+    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout=0.0):
         super(GATlayer, self).__init__()
-        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout=0.0)
-        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout=0.0)
+        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout)
+        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout)
         
     def forward(self, nh, eh, edge_index):
         src_node_i, dst_node_i = edge_index
@@ -39,11 +39,11 @@ class GATlayer(nn.Module):
 
 
 class GINlayer(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, activation, bias):
+    def __init__(self, input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout=0.0):
         super(GINlayer, self).__init__()
-        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout=0.0)
+        self.nf_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout)
         self.nf_eps = nn.Parameter(torch.FloatTensor([0.0]))
-        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout=0.0)
+        self.ef_lin = build_layer(input_dim, hidden_dim, output_dim, layer_num, activation, bias, dropout)
         self.ef_eps = nn.Parameter(torch.FloatTensor([0.0]))
         
     def forward(self, nh, eh, edge_index):
@@ -66,7 +66,7 @@ class GINlayer(nn.Module):
 
 
 class DICE(nn.Module):
-    def __init__(self, params, gnn_depth=3):
+    def __init__(self, params, gnn_depth=2):
         super(DICE, self).__init__()
         self.gnn_depth = gnn_depth
 
@@ -94,10 +94,10 @@ class DICE(nn.Module):
         # GNN Layers
         if params['gnn_type'] == 'GIN':
             self.gnn = nn.ModuleList([GINlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'], params['layer_num'],
-                                               params['activation'], True) for _ in range(self.gnn_depth)])
+                                               params['activation'], True, params['dropout']) for _ in range(self.gnn_depth)])
         elif params['gnn_type'] == 'GAT':
             self.gnn = nn.ModuleList([GATlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'], params['layer_num'],
-                                               params['activation'], True) for _ in range(self.gnn_depth)])
+                                               params['activation'], True, params['dropout']) for _ in range(self.gnn_depth)])
 
 
     def forward(self, batch):

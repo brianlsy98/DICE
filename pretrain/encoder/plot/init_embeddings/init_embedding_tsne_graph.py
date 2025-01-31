@@ -19,19 +19,23 @@ sys.path.append(parent_dir)
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(parent_dir)
 
-from utils import init_weights, send_to_device
+from utils import init_weights, send_to_device, set_seed
 from dataloader import GraphDataLoader
 
 def main():
+    set_seed(7)
+
     # Load dataset
+    # train_dataset = torch.load('./pretrain/dataset/pretraining_dataset_wo_device_params_train.pt')
+    # train_circuits = list(train_dataset.keys())
+
     dataset_path = './pretrain/dataset/pretraining_dataset_wo_device_params_test.pt'
     dataset = torch.load(dataset_path)
     test_data = []
     for circuit_name, pos_neg_graphs in dataset.items():
+        # if circuit_name in train_circuits: continue
         for pos_graph in pos_neg_graphs['pos']:
             test_data.append(pos_graph)
-        # for neg_graph in pos_neg_graphs['neg']:
-        #     test_data.append(neg_graph)
     dataloader = GraphDataLoader(test_data, batch_size=128, shuffle=True)
     print("\nDataset loaded")
 
@@ -71,13 +75,13 @@ def main():
 
     # Unique labels and colormap (up to 50 colors)
     unique_graph_labels = np.unique(graph_labels_all)
-    max_colors = 50
+    max_colors = 55
     graph_cmap = plt.get_cmap('hsv', max_colors)
 
     # Run t-SNE
     print("\nGraph embeddings t-SNE (initial)...")
     start = time.time()
-    tsne_graph_init = TSNE(n_components=2, random_state=98, perplexity=50, max_iter=3000)
+    tsne_graph_init = TSNE(n_components=2, random_state=98, perplexity=30, max_iter=1500)
     graph_embeddings_tsne_init = tsne_graph_init.fit_transform(initial_graph_embeddings)
     end = time.time()
     print(f"done in {end - start:.2f} seconds")

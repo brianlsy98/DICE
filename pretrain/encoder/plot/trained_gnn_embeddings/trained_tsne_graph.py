@@ -24,17 +24,14 @@ from model import DICE
 
 def main(args):
     # Set seed for reproducibility
-    set_seed(args.seed)
+    set_seed(7)
 
-    # Load dataset
-    dataset_path = './pretrain/dataset/pretraining_dataset_wo_device_params_test.pt'
+    dataset_path = './pretrain/dataset/pretraining_dataset_wo_device_params_test_pda.pt'
     dataset = torch.load(dataset_path)
     test_data = []
     for circuit_name, pos_neg_graphs in dataset.items():
         for pos_graph in pos_neg_graphs['pos']:
             test_data.append(pos_graph)
-        # for neg_graph in pos_neg_graphs['neg']:
-        #     test_data.append(neg_graph)  --> Excluding negative pairs
     dataloader = GraphDataLoader(test_data, batch_size=64, shuffle=True)
     print("\nDataset loaded")
 
@@ -42,15 +39,16 @@ def main(args):
     params_path = "./params.json"
     with open(params_path, 'r') as f:
         params = json.load(f)
+    taup = f"{args.taup}".replace(".", "")
     tau = f"{args.tau}".replace(".", "")
-    tautn = f"{args.tautn}".replace(".", "") if args.tautn != "None" else "None"
+    taun = f"{args.taun}".replace(".", "")
 
     # Initialize and load the trained model
     model_params = params['model']['encoder']['dice']
     trained_encoder = DICE(model_params, args.gnn_depth)
     model_path = (
         f"./pretrain/encoder/{params['project_name']}_pretrained_model_"
-        f"{model_params['gnn_type']}_depth{args.gnn_depth}_tau{tau}_tautn{tautn}.pt"
+        f"{model_params['gnn_type']}_depth{args.gnn_depth}_taup{taup}tau{tau}taun{taun}.pt"
     )
     trained_encoder.load(model_path)
     trained_encoder = trained_encoder.to('cuda')
@@ -95,13 +93,13 @@ def main(args):
 
     # Use a colormap that can comfortably handle up to 50 labels
     # Here, 'hsv' is used with 50 discrete bins. If you have more than 50 labels, colors will repeat.
-    max_colors = 50
+    max_colors = 55
     cmap = plt.get_cmap('hsv', max_colors)
 
     # Run t-SNE
-    print(f"\nGraph embeddings t-SNE (trained, tau{tau}, tautn{tautn})...")
+    print(f"\nGraph embeddings t-SNE (trained, taup{taup}, tau{tau}, taun{taun})...")
     start = time.time()
-    tsne = TSNE(n_components=2, random_state=98, perplexity=50, max_iter=3000)
+    tsne = TSNE(n_components=2, random_state=98, perplexity=30, max_iter=1500)
     graph_embeddings_tsne_trained = tsne.fit_transform(trained_graph_embeddings)
     end = time.time()
     print(f"done in {end - start:.2f} seconds")
@@ -131,7 +129,7 @@ def main(args):
     # ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 
     # Save and show the plot
-    plot_path = f"./pretrain/encoder/plot/trained_gnn_embeddings/tsne_trained_{model_params['gnn_type']}_depth{args.gnn_depth}_tau{tau}_tautn{tautn}_gf.png"
+    plot_path = f"./pretrain/encoder/plot/trained_gnn_embeddings/tsne_trained_{model_params['gnn_type']}_depth{args.gnn_depth}_taup{taup}tau{tau}taun{taun}_gf.png"
     plt.tight_layout()
     plt.xticks(visible=False)
     plt.yticks(visible=False)
@@ -140,9 +138,9 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Plot trained graph embeddings using t-SNE')
-    parser.add_argument('--tau', type=str, default="0.05", help='Temperature parameter for contrastive loss')
-    parser.add_argument('--tautn', type=str, default="0.05", help='Temperature parameter for contrastive loss (negative samples)')
+    parser.add_argument('--taup', type=str, default="0.2", help='Temperature parameter for contrastive loss (positive samples)')
+    parser.add_argument('--tau', type=str, default="0.05", help='Temperature parameter for contrastive loss (anchor samples)')
+    parser.add_argument('--taun', type=str, default="0.05", help='Temperature parameter for contrastive loss (negative samples)')
     parser.add_argument('--gnn_depth', type=int, default=2, help='GNN depth for the Encoder')
-    parser.add_argument('--seed', type=int, default=0, help='Seed for reproducibility')
     args = parser.parse_args()
     main(args)

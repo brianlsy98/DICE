@@ -359,6 +359,8 @@ def data_augmentation(graph, pos_or_neg="pos", sample_size=2):
 def init_weights(layer):
     if isinstance(layer, nn.Linear):
         nn.init.xavier_normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)
     if isinstance(layer, nn.BatchNorm1d):
         nn.init.constant_(layer.weight, 1)
         nn.init.constant_(layer.bias, 0)
@@ -393,7 +395,7 @@ def build_layer(input_dim, hidden_dim, output_dim, num_layers,
     Returns:
         nn.Sequential: The resulting feedforward network.
     """
-    act_map = {'gelu': nn.GELU, 'relu': nn.ReLU, 'sigmoid': nn.Sigmoid, 'tanh': nn.Tanh}
+    act_map = {'gelu': nn.GELU, 'relu': nn.ReLU, 'sigmoid': nn.Sigmoid, 'tanh': nn.Tanh, 'leaky_relu': nn.LeakyReLU}
     activation_fn = act_map.get(activation, nn.GELU)    # Default : GELU
 
     if num_layers == 1:

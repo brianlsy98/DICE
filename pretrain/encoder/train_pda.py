@@ -68,8 +68,8 @@ def train_model(args):
     set_seed(args.seed)
 
     ### Dataset
-    train_dataset = torch.load(f'./pretrain/dataset/{args.dataset_name}_train.pt')
-    val_dataset = torch.load(f'./pretrain/dataset/{args.dataset_name}_val.pt')
+    train_dataset = torch.load(f'./pretrain/dataset/{args.dataset_name}_train_pda.pt')
+    val_dataset = torch.load(f'./pretrain/dataset/{args.dataset_name}_val_pda.pt')
     print()
     print("Dataset Loaded")
     print()
@@ -100,7 +100,7 @@ def train_model(args):
             project=params['project_name'],
             name=(
                 f"dice_pretraining_{params['model']['encoder']['dice']['gnn_type']}"
-                f"_depth{args.gnn_depth}_taup{tau_p}tau{tau}taun{tau_n}_seed{args.seed}"
+                f"_depth{args.gnn_depth}_taup{tau_p}tau{tau}taun{tau_n}_pda_seed{args.seed}"
             ),
             config=config
         )
@@ -109,8 +109,8 @@ def train_model(args):
     # training dataloader
     train_data = []
     for circuit_name, pos_neg_train_data in train_dataset.items():
-        pos_train_data, neg_train_data = pos_neg_train_data['pos'], pos_neg_train_data['neg']
-        train_data += pos_train_data + neg_train_data
+        pos_train_data = pos_neg_train_data['pos']
+        train_data += pos_train_data
     random.shuffle(train_data)
     train_dataloader = GraphDataLoader(
         train_data,
@@ -121,8 +121,8 @@ def train_model(args):
     # validation dataloader
     val_data = []
     for circuit_name, pos_neg_val_data in val_dataset.items():
-        pos_val_data, neg_val_data = pos_neg_val_data['pos'], pos_neg_val_data['neg']
-        val_data += pos_val_data + neg_val_data
+        pos_val_data = pos_neg_val_data['pos']
+        val_data += pos_val_data
     random.shuffle(val_data)
     val_dataloader = GraphDataLoader(
         val_data,
@@ -199,7 +199,7 @@ def train_model(args):
             f"./pretrain/encoder/saved_models"
             f"/{params['project_name']}_pretrained_model"
             f"_{params['model']['encoder']['dice']['gnn_type']}"
-            f"_depth{args.gnn_depth}_taup{tau_p}tau{tau}taun{tau_n}_epoch{epoch}.pt"
+            f"_depth{args.gnn_depth}_taup{tau_p}tau{tau}taun{tau_n}_pda_epoch{epoch}.pt"
         )
 
     if args.wandb_log:
@@ -208,7 +208,7 @@ def train_model(args):
     model.save(
         f"./pretrain/encoder/{params['project_name']}_pretrained_model"
         f"_{params['model']['encoder']['dice']['gnn_type']}"
-        f"_depth{args.gnn_depth}_taup{tau_p}tau{tau}taun{tau_n}.pt"
+        f"_depth{args.gnn_depth}_taup{tau_p}tau{tau}taun{tau_n}_pda.pt"
     )
 
 
