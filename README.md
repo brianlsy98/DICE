@@ -1,5 +1,7 @@
 # Self-Supervised Graph Contrastive Pretraining for Device-level Integrated Circuits
-**We propose DICE: Device-level Integrated Circuits Encoder, a pretrained GNN model aimed to solve diverse tasks for both analog and digital integrated circuits.**
+---
+## Abstract
+Self-supervised graph representation learning has driven significant advancements in domains such as social network analysis, molecular design, and electronics design automation (EDA). However, prior works in EDA mainly focused on the representation of gate-level digital circuits, unable to capture analog and mixed-signal circuits. To address this gap, we introduce **DICE: Device-level Integrated Circuits Encoder**, the first self-supervised pretrained model for any device-level circuits. DICE is a message passing graph neural network (GNN) trained through graph contrastive learning, and the pretraining process is simulation-free with two novel data augmentation techniques. Experimental results demonstrate that DICE achieves substantial performance gains across three downstream tasks, underscoring its effectiveness on both analog and digital circuits.
 
 ---
 
