@@ -1,0 +1,60 @@
+* qu2017_azc_pin_3_amp
+
+.include './technology_files/45nm_bulk.txt'
+
+
+VDD vdd 0 1
+
+
+* PMOS Transistors
+MP0   net057 net055 vdd vdd pmos W=4e-06  L=1.3e-07
+MP1   net055 net055 vdd vdd pmos W=4e-06  L=1.3e-07
+MP2   net078 vb1     vdd vdd pmos W=4e-06 L=1.3e-07
+MP3   vout   net050  vdd vdd pmos W=4e-06 L=1.3e-07
+MP4   net049 vb1     vdd vdd pmos W=5e-06 L=1.3e-07
+MP5   net094 net050  vdd vdd pmos W=4e-06 L=1.3e-07
+MP6   net050 voutn   vdd vdd pmos W=4e-06 L=1.3e-07
+MP7   voutn  voutn   vdd vdd pmos W=4e-06 L=1.3e-07
+MP8   net063 vinp    net019 net019 pmos W=4e-06  L=1.3e-07
+MP9   dm_2   vinn    net019 net019 pmos W=4e-06  L=1.3e-07
+MP10  net019 vb1     vdd vdd pmos W=4e-06 L=1.3e-07
+MP11  vb4    vb1     vdd vdd pmos W=4e-06 L=1.3e-07
+MP12  vb1    vb1     vdd vdd pmos W=4e-06 L=1.3e-07
+
+* NMOS Transistors
+MN0   net049 net057 gnd gnd nmos W=3e-06  L=1.3e-07
+MN1   net055 net094 gnd gnd nmos W=2e-06  L=1.3e-07
+MN2   net077 dm_2   gnd gnd nmos W=2e-06  L=1.3e-07
+MN3   net082 net063 gnd gnd nmos W=3e-06  L=1.3e-07
+MN4   vout   net049  gnd gnd nmos W=2e-06  L=1.3e-07
+MN5   net094 net051 gnd gnd nmos W=2e-06  L=1.3e-07
+MN6   net057 net043 gnd gnd nmos W=2e-06  L=1.3e-07
+MN7   dm_2   vb4    gnd gnd nmos W=2e-06  L=1.3e-07
+MN8   voutn  net077 dm_2 gnd nmos W=2e-06  L=1.3e-07
+MN9   net063 vb4    gnd gnd nmos W=3e-06  L=1.3e-07
+MN10  net050 net082 net063 gnd nmos W=2e-06 L=1.3e-07
+MN11  vb4    vb4    gnd gnd nmos W=2e-06 L=1.3e-07
+
+* Current Source
+I0    vb1    gnd 0.0005
+
+* Capacitors
+C2    net043 gnd 1e-10
+C1    net051 gnd 1e-10
+C0    net063 vout 2e-10
+
+* Resistors
+R3    net057 net043 1000.0
+R2    net057 net051 1000.0
+R1    net078 net082 1000.0
+R0    net078 net077 1000.0
+
+VINN vinn gnd 0.0
+VINP vinp gnd 1.0
+
+.control
+DC temp  25   25   1
+print gnd vdd vinn vinp vout net057 net055 net078 vb1 net050 net049 net094 voutn net063 dm_2 net019 vb4 net077 net082 net051 net043
+.endc
+
+.end

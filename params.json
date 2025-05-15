@@ -6,19 +6,19 @@
                 "nf_in_dim": 9, "ef_in_dim": 5, "hidden_dim": 512,
                 "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
                 "layer_num": 5, "activation": "gelu", "dropout": 0.2,
-                "gnn_type": "GIN"
+                "gnn_type": "GIN_w_ef_update"
             },
             "parallel_gnn": {
                 "nf_in_dim": 9, "ef_in_dim": 5, "hidden_dim": 512,
                 "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
-                "layer_num": 5, "activation": "gelu",
-                "gnn_type": "GIN"
+                "layer_num": 5, "activation": "gelu", "dropout": 0.2,
+                "gnn_type": "GIN_w_ef_update"
             },
             "series_gnn": {
                 "nf_in_dim": 576, "ef_in_dim": 320, "hidden_dim": 512,
                 "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
-                "layer_num": 5, "activation": "gelu",
-                "gnn_type": "GIN"
+                "layer_num": 5, "activation": "gelu", "dropout": 0.2,
+                "gnn_type": "GIN_w_ef_update"
             }
         },
         "decoder": {
@@ -97,19 +97,19 @@
                     "nf_in_dim": 9, "ef_in_dim": 5, "hidden_dim": 512,
                     "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
                     "layer_num": 5, "activation": "gelu", "dropout": 0.2,
-                    "gnn_type": "GIN"
+                    "gnn_type": "GIN_w_ef_update"
                 },
                 "parallel_gnn": {
                     "nf_in_dim": 9, "ef_in_dim": 5, "hidden_dim": 512,
                     "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
-                    "layer_num": 5, "activation": "gelu",
-                    "gnn_type": "GIN"
+                    "layer_num": 5, "activation": "gelu", "dropout": 0.2,
+                    "gnn_type": "GIN_w_ef_update"
                 },
                 "series_gnn": {
                     "nf_in_dim": 576, "ef_in_dim": 320, "hidden_dim": 512,
                     "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
-                    "layer_num": 3, "activation": "gelu",
-                    "gnn_type": "GIN"
+                    "layer_num": 3, "activation": "gelu", "dropout": 0.2,
+                    "gnn_type": "GIN_w_ef_update"
                 }
             },
             "ParaGraph": {
@@ -117,12 +117,12 @@
                 "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
                 "gnn_depth": 3
             },
-            "PretrainGNN_nopretrain": {
+            "DeepGen_u": {
                 "nf_in_dim": 15, "ef_in_dim": 1, "hidden_dim": 512,
                 "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
                 "gnn_depth": 3
             },
-            "PretrainGNN_yespretrain": {
+            "DeepGen_p": {
                 "nf_in_dim": 15, "ef_in_dim": 1, "hidden_dim": 512,
                 "nf_out_dim": 64, "ef_out_dim": 64, "gf_out_dim": 256,
                 "gnn_depth": 3
@@ -137,11 +137,11 @@
                 "nf_in_dim": 64, "ef_in_dim": 5, "hidden_dim": 256,
                 "layer_num": 5, "activation": "gelu", "dropout": 0.3
             },
-            "PretrainGNN_nopretrain":{
+            "DeepGen_u":{
                 "nf_in_dim": 64, "ef_in_dim": 1, "hidden_dim": 256,
                 "layer_num": 5, "activation": "gelu", "dropout": 0.3
             },
-            "PretrainGNN_yespretrain":{
+            "DeepGen_p":{
                 "nf_in_dim": 64, "ef_in_dim": 1, "hidden_dim": 256,
                 "layer_num": 5, "activation": "gelu", "dropout": 0.3
             }

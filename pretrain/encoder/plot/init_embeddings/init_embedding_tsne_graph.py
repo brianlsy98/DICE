@@ -25,9 +25,6 @@ from dataloader import GraphDataLoader
 def main():
     set_seed(7)
 
-    # Load dataset
-    # train_dataset = torch.load('./pretrain/dataset/pretraining_dataset_wo_device_params_train.pt')
-    # train_circuits = list(train_dataset.keys())
 
     dataset_path = './pretrain/dataset/pretraining_dataset_wo_device_params_test.pt'
     dataset = torch.load(dataset_path)
@@ -75,7 +72,7 @@ def main():
 
     # Unique labels and colormap (up to 50 colors)
     unique_graph_labels = np.unique(graph_labels_all)
-    max_colors = 55
+    max_colors = 15
     graph_cmap = plt.get_cmap('hsv', max_colors)
 
     # Run t-SNE
@@ -100,11 +97,6 @@ def main():
             label=f'Label {label}',
             s=15
         )
-
-    # ax.set_title("Graph Embeddings t-SNE (Initial)")
-    # ax.set_xlabel('Component 1')
-    # ax.set_ylabel('Component 2')
-    # ax.legend()
 
     # Save and show the plot
     plot_path = "./pretrain/encoder/plot/init_embeddings/init_embedding_gf.png"

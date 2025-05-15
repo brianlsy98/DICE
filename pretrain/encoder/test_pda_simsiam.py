@@ -67,14 +67,18 @@ def test_model(args):
     with open('./params.json', 'r') as f:
         params = json.load(f)
 
+
     ########################
-    # trained model with neg data augmentation
-    trained_model = DICE(params['model']['encoder']['dice'], gnn_depth=args.gnn_depth)
-    trained_model.load(f"./pretrain/encoder/DICE_pretrained_model"
-                       f"_{params['model']['encoder']['dice']['gnn_type']}"
-                       f"_depth2_taup02tau005taun005.pt")
+    # untrained model
+    untrained_model = DICE(params['model']['encoder']['dice'], gnn_depth=args.gnn_depth)
+    untrained_model.apply(init_weights)
+    # trained model with only positive data augmentation
+    trained_model_pda = DICE(params['model']['encoder']['dice'], gnn_depth=args.gnn_depth)
+    trained_model_pda.load(f"./pretrain/encoder/DICE_pretrained_model_GIN_depth2_tau005_pda.pt")
+    trained_model_simsiam = DICE(params['model']['encoder']['dice'], gnn_depth=args.gnn_depth)
+    trained_model_simsiam.load(f"./pretrain/encoder/DICE_pretrained_model_GIN_depth2_simsiam.pt")
     ########################
-    trained_model.to('cuda')
+    untrained_model.to('cuda'); trained_model_pda.to('cuda'); trained_model_simsiam.to('cuda')
     print()
     print("Model Initialized")
     print()
@@ -101,10 +105,10 @@ def test_model(args):
 
 
     ### Test
-    trained_model.eval()
-    init_cs_values_p, trained_w_cs_values_p = [], []
-    init_cs_values_np, trained_w_cs_values_np = [], []
-    init_cs_values_n, trained_w_cs_values_n = [], []
+    untrained_model.eval(); trained_model_pda.eval()
+    init_cs_values_p, untrained_cs_values_p, trained_w_cs_values_pda_p, trained_w_cs_values_simsiam_p = [], [], [], []
+    init_cs_values_np, untrained_cs_values_np, trained_w_cs_values_pda_np, trained_w_cs_values_simsiam_np = [], [], [], []
+    init_cs_values_n, untrained_cs_values_n, trained_w_cs_values_pda_n, trained_w_cs_values_simsiam_n = [], [], [], []
 
     for s in [99, 88, 77, 66, 55]:
         print(f"testing on seed {s}...")
@@ -115,36 +119,52 @@ def test_model(args):
                 ############################
                 with autocast('cuda'):
                     gf_i = get_init_gf(test_batch)
-                    _, _, gf_t = trained_model(test_batch)
+                    _, _, gf_u = untrained_model(test_batch)
+                    _, _, gf_pda = trained_model_pda(test_batch)
+                    _, _, gf_simsiam = trained_model_simsiam(test_batch)
                     init_cs_p, init_cs_np, init_cs_n = get_cosine_similarities(gf_i, test_batch['circuit'])
-                    trained_w_cs_p, trained_w_cs_np, trained_w_cs_n = get_cosine_similarities(gf_t, test_batch['circuit'])
+                    untrained_cs_p, untrained_cs_np, untrained_cs_n = get_cosine_similarities(gf_u, test_batch['circuit'])
+                    trained_w_cs_pda_p, trained_w_cs_pda_np, trained_w_cs_pda_n = get_cosine_similarities(gf_pda, test_batch['circuit'])
+                    trained_w_cs_simsiam_p, trained_w_cs_simsiam_np, trained_w_cs_simsiam_n = get_cosine_similarities(gf_simsiam, test_batch['circuit'])
                     ############################
                 init_cs_values_p.append(init_cs_p)
-                trained_w_cs_values_p.append(trained_w_cs_p)
+                untrained_cs_values_p.append(untrained_cs_p)
+                trained_w_cs_values_pda_p.append(trained_w_cs_pda_p)
+                trained_w_cs_values_simsiam_p.append(trained_w_cs_simsiam_p)
                 init_cs_values_np.append(init_cs_np)
-                trained_w_cs_values_np.append(trained_w_cs_np)
+                untrained_cs_values_np.append(untrained_cs_np)
+                trained_w_cs_values_pda_np.append(trained_w_cs_pda_np)
+                trained_w_cs_values_simsiam_np.append(trained_w_cs_simsiam_np)
                 init_cs_values_n.append(init_cs_n)
-                trained_w_cs_values_n.append(trained_w_cs_n)
+                untrained_cs_values_n.append(untrained_cs_n)
+                trained_w_cs_values_pda_n.append(trained_w_cs_pda_n)
+                trained_w_cs_values_simsiam_n.append(trained_w_cs_simsiam_n)
     
-    init_cs_values_p, init_cs_values_np, init_cs_values_n\
-        = torch.cat(init_cs_values_p, dim=0), torch.cat(init_cs_values_np, dim=0), torch.cat(init_cs_values_n, dim=0)
-    trained_w_cs_values_p, trained_w_cs_values_np, trained_w_cs_values_n\
-        = torch.cat(trained_w_cs_values_p, dim=0), torch.cat(trained_w_cs_values_np, dim=0), torch.cat(trained_w_cs_values_n, dim=0)
-    
+    init_cs_values_p, init_cs_values_np, init_cs_values_n = torch.cat(init_cs_values_p, dim=0), torch.cat(init_cs_values_np, dim=0), torch.cat(init_cs_values_n, dim=0)
+    untrained_cs_values_p, untrained_cs_values_np, untrained_cs_values_n = torch.cat(untrained_cs_values_p, dim=0), torch.cat(untrained_cs_values_np, dim=0), torch.cat(untrained_cs_values_n, dim=0)
+    trained_w_cs_values_pda_p, trained_w_cs_values_pda_np, trained_w_cs_values_pda_n = torch.cat(trained_w_cs_values_pda_p, dim=0), torch.cat(trained_w_cs_values_pda_np, dim=0), torch.cat(trained_w_cs_values_pda_n, dim=0)
+    trained_w_cs_values_simsiam_p, trained_w_cs_values_simsiam_np, trained_w_cs_values_simsiam_n = torch.cat(trained_w_cs_values_simsiam_p, dim=0), torch.cat(trained_w_cs_values_simsiam_np, dim=0), torch.cat(trained_w_cs_values_simsiam_n, dim=0)
+
     print()
     print("Cosine Similarities Calculated")
     print()
     print("Positive Pairs")
     print("Init     :", f"{init_cs_values_p.mean().item():.3f}", f"{init_cs_values_p.std().item():.3f}")
-    print("T        :", f"{trained_w_cs_values_p.mean().item():.3f}", f"{trained_w_cs_values_p.std().item():.3f}")
+    print("U        :", f"{untrained_cs_values_p.mean().item():.3f}", f"{untrained_cs_values_p.std().item():.3f}")
+    print("Tpda     :", f"{trained_w_cs_values_pda_p.mean().item():.3f}", f"{trained_w_cs_values_pda_p.std().item():.3f}")
+    print("Tsimsiam :", f"{trained_w_cs_values_simsiam_p.mean().item():.3f}", f"{trained_w_cs_values_simsiam_p.std().item():.3f}")
     print()
     print("Non-Equal Pairs")
     print("Init     :", f"{init_cs_values_np.mean().item():.3f}", f"{init_cs_values_np.std().item():.3f}")
-    print("T        :", f"{trained_w_cs_values_np.mean().item():.3f}", f"{trained_w_cs_values_np.std().item():.3f}")
+    print("U        :", f"{untrained_cs_values_np.mean().item():.3f}", f"{untrained_cs_values_np.std().item():.3f}")
+    print("Tpda     :", f"{trained_w_cs_values_pda_np.mean().item():.3f}", f"{trained_w_cs_values_pda_np.std().item():.3f}")
+    print("Tsimsiam :", f"{trained_w_cs_values_simsiam_np.mean().item():.3f}", f"{trained_w_cs_values_simsiam_np.std().item():.3f}")
     print()
     print("Negative Pairs")
     print("Init     :", f"{init_cs_values_n.mean().item():.3f}", f"{init_cs_values_n.std().item():.3f}")
-    print("T        :", f"{trained_w_cs_values_n.mean().item():.3f}", f"{trained_w_cs_values_n.std().item():.3f}")
+    print("U        :", f"{untrained_cs_values_n.mean().item():.3f}", f"{untrained_cs_values_n.std().item():.3f}")
+    print("Tpda     :", f"{trained_w_cs_values_pda_n.mean().item():.3f}", f"{trained_w_cs_values_pda_n.std().item():.3f}")
+    print("Tsimsiam :", f"{trained_w_cs_values_simsiam_n.mean().item():.3f}", f"{trained_w_cs_values_simsiam_n.std().item():.3f}")
 
 
 

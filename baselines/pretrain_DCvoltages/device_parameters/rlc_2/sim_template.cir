@@ -1,0 +1,15 @@
+* qu2017_azc_pin_3_amp
+
+.include './technology_files/45nm_bulk.txt'
+
+R0   vin   vout  'R0'
+C0   vout  vlc   'C0'
+L0   vlc   gnd   'L0'
+VIN  vin   gnd   'VIN'
+
+.control
+DC temp  25   25   1
+print gnd vin vout vlc
+.endc
+
+.end

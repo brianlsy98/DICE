@@ -15,7 +15,7 @@ import torch
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 
-from utils import parse_netlist
+from utils_baseline import parse_netlist_baseline, data_augmentation_baseline
 from dataloader import GraphData
 
 
@@ -54,34 +54,75 @@ def incomplete_simulation(graph_attrs, task_name):
 
 
 
-def add_device_params(graph, node_names, param_pair):
+def add_device_params(graph, node_names, edge_names, param_pair, baseline_name):
     # node_name  : ('device1_name', 'device2_name', ...)
     # param_pair : (('param_name', param_value), ...)
 
-    device_params = torch.ones_like(graph.node_y).float()
-    for param_name, param_value in param_pair:
-        if param_name[0] == "M":
-            device_node_index = node_names.index(param_name[:-1])
-            if param_name[-1] == "W":
-                if device_params[device_node_index] == 1:
-                    device_params[device_node_index] *= param_value
-                else:
-                    device_params[device_node_index] *= param_value
-                    device_params[device_node_index] = -torch.log(device_params[device_node_index])
-            elif param_name[-1] == "L":
-                if device_params[device_node_index] == 1:
-                    device_params[device_node_index] /= param_value
-                else:
-                    device_params[device_node_index] /= param_value
-                    device_params[device_node_index] = -torch.log(device_params[device_node_index])
-        elif param_name[0] == "V":
-            voltage_node_index = node_names.index(param_name)
-            device_params[voltage_node_index] = torch.exp(torch.tensor(param_value, dtype=torch.float32))
-        else:
-            device_node_index = node_names.index(param_name)
-            device_params[device_node_index] = -torch.log(torch.tensor(param_value, dtype=torch.float32))
 
-    graph.set_device_params(device_params)
+    #####################################
+    ############# ParaGraph #############
+    #####################################
+    if baseline_name == "ParaGraph":
+
+        device_params = torch.ones_like(graph.node_y).float()
+        for param_name, param_value in param_pair:
+            if param_name[0] == "M":
+                device_node_index = node_names.index(param_name[:-1])
+                if param_name[-1] == "W":
+                    if device_params[device_node_index] == 1:
+                        device_params[device_node_index] *= param_value
+                    else:
+                        device_params[device_node_index] *= param_value
+                        device_params[device_node_index] = -torch.log(device_params[device_node_index])
+                elif param_name[-1] == "L":
+                    if device_params[device_node_index] == 1:
+                        device_params[device_node_index] /= param_value
+                    else:
+                        device_params[device_node_index] /= param_value
+                        device_params[device_node_index] = -torch.log(device_params[device_node_index])
+            elif param_name[0] == "V":
+                voltage_node_index = node_names.index(param_name)
+                device_params[voltage_node_index] = torch.exp(torch.tensor(param_value, dtype=torch.float32))
+            else:
+                device_node_index = node_names.index(param_name)
+                device_params[device_node_index] = -torch.log(torch.tensor(param_value, dtype=torch.float32))
+
+        graph.set_device_params(device_params)
+
+
+    #####################################
+    ############## DeepGen ##############
+    #####################################
+    if baseline_name == "DeepGen":
+
+        device_params = torch.ones_like(graph.node_y).float()
+        for param_name, param_value in param_pair:
+            if param_name[0] == "M":
+                for mosfet_nodes in ['d', 'g', 's', 'b']:
+                    device_node_index = node_names.index(f"{param_name[:-1]}_{mosfet_nodes}")
+                    if param_name[-1] == "W":
+                        if device_params[device_node_index] == 1:
+                            device_params[device_node_index] *= param_value
+                        else:
+                            device_params[device_node_index] *= param_value
+                            device_params[device_node_index] = -torch.log(device_params[device_node_index])
+                    elif param_name[-1] == "L":
+                        if device_params[device_node_index] == 1:
+                            device_params[device_node_index] /= param_value
+                        else:
+                            device_params[device_node_index] /= param_value
+                            device_params[device_node_index] = -torch.log(device_params[device_node_index])
+
+            elif param_name[0] == "V":
+                voltage_node_index = node_names.index(param_name)
+                device_params[voltage_node_index] = torch.exp(torch.tensor(param_value, dtype=torch.float32))
+            else:
+                for i in range(1, 3):
+                    device_node_index = node_names.index(f"{param_name}_{i}")
+                    device_params[device_node_index] = -torch.log(torch.tensor(param_value, dtype=torch.float32))
+
+        graph.set_device_params(device_params)
+
 
     return graph
 
@@ -145,8 +186,10 @@ def gen_data_circuit_classification(args, circuit_dictionary):
         else: raise ValueError("Invalid Circuit")
 
         # info from netlist template file
-        circuit_name, node_names, nf, node_labels,\
-        edge_indices, ef, edge_labels = parse_netlist(f'{circuit_dir}/netlist.cir')
+        circuit_name, node_names, edge_names, nf, node_labels,\
+        edge_indices, ef, edge_labels = parse_netlist_baseline(
+            f'{circuit_dir}/netlist.cir', args.baseline_name
+        )
 
         ## Make Graph
         graph = GraphData()
@@ -170,6 +213,23 @@ def gen_data_circuit_classification(args, circuit_dictionary):
 
         train_graphs, val_graphs, test_graphs = [graph], [graph], [graph]
 
+        # Data Augmentation
+        # Train
+        for _ in range(int(args.augmentation_per_circuit*args.train_ratio)):
+            g = random.choice(train_graphs)
+            new_graph = data_augmentation_baseline(g, "pos", 1, args.baseline_name)
+            train_graphs.extend(new_graph)
+        # Val
+        for _ in range(int(args.augmentation_per_circuit*args.val_ratio)):
+            g = random.choice(val_graphs)
+            new_graph = data_augmentation_baseline(g, "pos", 1, args.baseline_name)
+            val_graphs.extend(new_graph)
+        # Test
+        for _ in range(int(args.augmentation_per_circuit*args.test_ratio)):
+            g = random.choice(test_graphs)
+            new_graph = data_augmentation_baseline(g, "pos", 1, args.baseline_name)
+            test_graphs.extend(new_graph)
+
         graph_list_train.extend(train_graphs)
         graph_list_val.extend(val_graphs)
         graph_list_test.extend(test_graphs)
@@ -182,8 +242,10 @@ def gen_data_circuit_classification(args, circuit_dictionary):
         else: raise ValueError("Invalid Circuit")
 
         # info from netlist template file
-        circuit_name, node_names, nf, node_labels,\
-        edge_indices, ef, edge_labels = parse_netlist(f'{circuit_dir}/netlist.cir')
+        circuit_name, node_names, edge_names, nf, node_labels,\
+        edge_indices, ef, edge_labels = parse_netlist_baseline(
+            f'{circuit_dir}/netlist.cir', args.baseline_name
+        )
 
         ## Make Graph
         graph = GraphData()
@@ -207,6 +269,17 @@ def gen_data_circuit_classification(args, circuit_dictionary):
 
         val_graphs, test_graphs = [graph], [graph]
 
+        # Data Augmentation
+        # Val
+        for _ in range(int(args.augmentation_per_circuit*args.val_ratio)):
+            g = random.choice(val_graphs)
+            new_graph = data_augmentation_baseline(g, "pos", 1, args.baseline_name)
+            val_graphs.extend(new_graph)
+        # Test
+        for _ in range(int(args.augmentation_per_circuit*args.test_ratio)):
+            g = random.choice(test_graphs)
+            new_graph = data_augmentation_baseline(g, "pos", 1, args.baseline_name)
+            test_graphs.extend(new_graph)
 
         graph_list_val.extend(val_graphs)
         graph_list_test.extend(test_graphs)
@@ -226,7 +299,7 @@ def gen_data_simresult_prediction(args, circuit_dictionary):
     task_dir = f"./downstream_tasks/{args.task_name}"
     task_circuits = os.listdir(f"{task_dir}/device_parameters")
 
-    for circuit in task_circuits[0:]:
+    for circuit in task_circuits:
         if circuit in os.listdir("./circuits/downstreamtrain_nopretrain"):
             circuit_dir = f"./circuits/downstreamtrain_nopretrain/{circuit}"
         elif circuit in os.listdir("./circuits/pretrain"):
@@ -243,8 +316,10 @@ def gen_data_simresult_prediction(args, circuit_dictionary):
             f.write(sim_content)
 
         # info from netlist template file
-        circuit_name, node_names, nf, node_labels,\
-        edge_indices, ef, edge_labels = parse_netlist(f'{circuit_dir}/netlist.cir')
+        circuit_name, node_names, edge_names, nf, node_labels,\
+        edge_indices, ef, edge_labels = parse_netlist_baseline(
+            f'{circuit_dir}/netlist.cir', args.baseline_name
+        )
 
         # Read the parameter file
         with open(f"{device_param_dir}/param.json", 'r') as f:
@@ -304,7 +379,7 @@ def gen_data_simresult_prediction(args, circuit_dictionary):
 
             # set device parameters : if device -> -log(parameter_value), else -> 1
             # mos : W/L, res : resistance, cap : capacitance, ind : inductance
-            graph = add_device_params(graph, node_names, param_pair)
+            graph = add_device_params(graph, node_names, edge_names, param_pair, args.baseline_name)
 
             # set graph level simulation results : -log(rise_delay), -log(fall_delay), op_amp power, etc.
             graph = add_simulation_results(graph, measurements, args.task_name)
@@ -344,7 +419,7 @@ def generate_dataset(args):
 
     ### Generate Dataset
     print()
-    print(f"Generating dataset for {args.task_name}...")
+    print(f"Generating dataset for {args.task_name}, {args.baseline_name}...")
     if args.task_name == "circuit_similarity_prediction":
         graph_list_train, graph_list_val, graph_list_test, circuit_dictionary = gen_data_circuit_classification(args, circuit_dictionary)
     elif args.task_name == "delay_prediction" or args.task_name == "opamp_metric_prediction":
@@ -354,12 +429,11 @@ def generate_dataset(args):
 
     # Save the dataset
     random.shuffle(graph_list_train); random.shuffle(graph_list_val); random.shuffle(graph_list_test)
-    path = f"./downstream_tasks/{args.task_name}"
+    path = f"./baselines/{args.task_name}"
     os.makedirs(path, exist_ok=True)
-
-    torch.save(graph_list_train, f"{path}/{args.task_name}_train.pt")
-    torch.save(graph_list_val, f"{path}/{args.task_name}_val.pt")
-    torch.save(graph_list_test, f"{path}/{args.task_name}_test.pt")
+    torch.save(graph_list_train, f"{path}/{args.task_name}_{args.baseline_name}_train.pt")
+    torch.save(graph_list_val, f"{path}/{args.task_name}_{args.baseline_name}_val.pt")
+    torch.save(graph_list_test, f"{path}/{args.task_name}_{args.baseline_name}_test.pt")
 
 
     with open("./circuits/circuits.json", 'w') as f:
@@ -374,6 +448,8 @@ def generate_dataset(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--task_name", type=str, default="delay_prediction")
+    parser.add_argument("--augmentation_per_circuit", type=int, default=0)
+    parser.add_argument("--baseline_name", type=str, default="ParaGraph", help="ParaGraph, DeepGen")
     parser.add_argument("--train_ratio", type=float, default=0.8)
     parser.add_argument("--val_ratio", type=float, default=0.1)
     parser.add_argument("--test_ratio", type=float, default=0.1)

@@ -1,0 +1,18 @@
+* Current Mirror
+
+.include './technology_files/45nm_bulk.txt'
+
+VDD vdd 0 1
+
+MP0  vg    vin   vdd  vdd  pmos  W='MP0W'  L='MP0L'
+MN0  vg    vg    gnd  gnd  nmos  W='MN0W'  L='MN0L'
+MN1  vout  vg    gnd  gnd  nmos  W='MN1W'  L='MN1L'
+R0   vout  vdd  'R0'
+VIN  vin   gnd  'VIN'
+
+.control
+DC temp  25   25   1
+print gnd vdd vin vout vg
+.endc
+
+.end

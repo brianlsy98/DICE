@@ -1,4 +1,3 @@
-from hmac import new
 import os
 import sys
 import argparse
@@ -6,7 +5,6 @@ import random
 import json
 from tqdm import tqdm
 
-from networkx import edges
 import torch
 import torch.nn.functional as F
 
@@ -20,8 +18,6 @@ from dataloader import GraphData
 
 def save_dataset(args):
 
-    if os.path.exists("./circuits/circuits.json"):
-        os.remove("./circuits/circuits.json")
     circuit_dictionary = {}
 
     ############################################################################################################
@@ -69,26 +65,6 @@ def save_dataset(args):
             circuit_i_train_graphs["neg"].extend(new_neg_graphs)
         train_dataset[circuit_name] = circuit_i_train_graphs
         print(f"Training Set Data Augmentation ({circuit_name}): size {args.datasize_per_circuit*args.train_ratio}")
-
-        # Validation Graph Data Augmentation
-        while len(circuit_i_val_graphs["pos"]) < args.datasize_per_circuit//2*args.val_ratio:
-            pos_graph = random.choice(circuit_i_val_graphs["pos"])
-            new_pos_graphs = data_augmentation(pos_graph, "pos", 1)
-            new_neg_graphs = data_augmentation(pos_graph, "neg", 1)
-            circuit_i_val_graphs["pos"].extend(new_pos_graphs)
-            circuit_i_val_graphs["neg"].extend(new_neg_graphs)
-        val_dataset[circuit_name] = circuit_i_val_graphs
-        print(f"Validation Set Data Augmentation ({circuit_name}): size {args.datasize_per_circuit*args.val_ratio}")
-
-        # Test Graph Data Augmentation : no need for neg data augmentation
-        while len(circuit_i_test_graphs["pos"]) < args.datasize_per_circuit//2*args.test_ratio:
-            pos_graph = random.choice(circuit_i_test_graphs["pos"])
-            new_pos_graphs = data_augmentation(pos_graph, "pos", 1)
-            new_neg_graphs = data_augmentation(pos_graph, "neg", 1)
-            circuit_i_test_graphs["pos"].extend(new_pos_graphs)
-            circuit_i_test_graphs["neg"].extend(new_neg_graphs)
-        test_dataset[circuit_name] = circuit_i_test_graphs
-        print(f"Test Set Data Augmentation ({circuit_name}): size {args.datasize_per_circuit*args.test_ratio}")
     ############################################################################################################
 
 

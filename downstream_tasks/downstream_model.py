@@ -1,8 +1,5 @@
 import os
 import sys
-import json
-import copy
-from turtle import forward
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,16 +11,19 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 
 from utils import build_layer
-from model import DICE, GATlayer, GINlayer
+from model import DICE, GINlayer_w_ef_update
+from model import GCNlayer, GraphSAGElayer, GATlayer, GINlayer
 
 
 ############################################################################################################
 # ENCODER
 ############################################################################################################
-class Added_GNN(nn.Module):     ### This is basically the same with DICE model
-    def __init__(self, params, gnn_depth):
+class Added_GNN(nn.Module):
+    def __init__(self, params, gnn_depth=2):
         super(Added_GNN, self).__init__()
         self.gnn_depth = gnn_depth
+        self.nf_in_dim = params['nf_in_dim']
+        self.ef_in_dim = params['ef_in_dim']
 
         # Linear Layers
         self.init_lin = nn.ModuleDict({
@@ -47,12 +47,21 @@ class Added_GNN(nn.Module):     ### This is basically the same with DICE model
         })
 
         # GNN Layers
-        if params['gnn_type'] == 'GIN':
-            self.gnn = nn.ModuleList([GINlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'], params['layer_num'],
-                                               params['activation'], True) for _ in range(self.gnn_depth)])
+        if params['gnn_type'] == 'GCN':
+            self.gnn = nn.ModuleList([GCNlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'], params['layer_num'],
+                                               params['activation'], True, params['dropout']) for _ in range(self.gnn_depth)])
+        elif params['gnn_type'] == 'GraphSAGE':
+            self.gnn = nn.ModuleList([GraphSAGElayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'], params['layer_num'],
+                                               params['activation'], True, params['dropout']) for _ in range(self.gnn_depth)])
         elif params['gnn_type'] == 'GAT':
             self.gnn = nn.ModuleList([GATlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'], params['layer_num'],
-                                               params['activation'], True) for _ in range(self.gnn_depth)])
+                                               params['activation'], True, params['dropout']) for _ in range(self.gnn_depth)])
+        elif params['gnn_type'] == 'GIN':
+            self.gnn = nn.ModuleList([GINlayer(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'], params['layer_num'],
+                                               params['activation'], True, params['dropout']) for _ in range(self.gnn_depth)])
+        elif params['gnn_type'] == 'GIN_w_ef_update':
+            self.gnn = nn.ModuleList([GINlayer_w_ef_update(params['hidden_dim'], params['hidden_dim'], params['hidden_dim'], params['layer_num'],
+                                               params['activation'], True, params['dropout']) for _ in range(self.gnn_depth)])
 
 
     def forward(self, nf, ef, batch):
@@ -77,8 +86,8 @@ class Added_GNN(nn.Module):     ### This is basically the same with DICE model
         nh = self.lin_out['nf'](nh).unsqueeze(1)    # (N, 1, nf_out_dim)
         eh = self.lin_out['ef'](eh).unsqueeze(1)    # (E, 1, ef_out_dim)
 
-        nh_label_one_hot = F.one_hot(batch['node_y'], num_classes=9).float().unsqueeze(-1) # (N, 9, 1)
-        eh_label_one_hot = F.one_hot(batch['edge_y'], num_classes=5).float().unsqueeze(-1) # (E, 5, 1)
+        nh_label_one_hot = F.one_hot(batch['node_y'], num_classes=self.nf_in_dim).float().unsqueeze(-1) # (N, 9, 1)
+        eh_label_one_hot = F.one_hot(batch['edge_y'], num_classes=self.ef_in_dim).float().unsqueeze(-1) # (E, 5, 1)
 
         nh_3d = nh_label_one_hot * nh   # (N, 9, nf_out_dim)
         eh_3d = eh_label_one_hot * eh   # (E, 5, ef_out_dim)
@@ -86,7 +95,7 @@ class Added_GNN(nn.Module):     ### This is basically the same with DICE model
         nh = nh_3d.view(nh.size(0), -1) # (N, 9*nf_out_dim)
         eh = eh_3d.view(eh.size(0), -1) # (E, 5*ef_out_dim)
         ##################################
-        
+    
         return nh, eh, gh
 
 
@@ -96,7 +105,10 @@ class Added_GNN(nn.Module):     ### This is basically the same with DICE model
         torch.save(self.state_dict(), path)
 
     def load(self, path):
-        self.load_state_dict(torch.load(path))
+        if torch.cuda.is_available():
+            self.load_state_dict(torch.load(path))
+        else:
+            self.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
 
 
 
@@ -109,7 +121,8 @@ class DownstreamEncoder(nn.Module):
         self.parallel_gnn = Added_GNN(params['parallel_gnn'], args.p_gnn_depth)
         ##### 3) GNN added series to DICE
         self.series_gnn = Added_GNN(params['series_gnn'], args.s_gnn_depth)
-
+        self.series_gnn.nf_in_dim = params['parallel_gnn']['nf_in_dim']
+        self.series_gnn.ef_in_dim = params['parallel_gnn']['ef_in_dim']
 
     def forward(self, batch):
         ##### 1) DICE

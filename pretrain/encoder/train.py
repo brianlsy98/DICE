@@ -9,7 +9,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import wandb
 
-from torch.amp import autocast, GradScaler
+from torch.cuda.amp import autocast, GradScaler
+
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(parent_dir)
@@ -57,9 +58,12 @@ def contrastive_learning_loss(gf, gf_labels, tau_p, tau, tau_n):
         )
 
     gf_loss = - (gf_log_value_matrix * positive_mask.float()).sum()
-    gf_loss /= positive_mask.float().sum()
+    
+    if positive_mask.float().sum() != 0:
+        gf_loss /= positive_mask.float().sum()
 
     return gf_loss
+
 
 
 def train_model(args):
@@ -148,7 +152,7 @@ def train_model(args):
             train_batch = send_to_device(train_batch, params['pretraining']['train']["device"])
             ############################
             model.optimizer.zero_grad()
-            with autocast(device_type=params['pretraining']['train']["device"]):
+            with autocast():
                 _, _, gf = model(train_batch)
                 train_loss = contrastive_learning_loss(
                     gf,
@@ -170,7 +174,7 @@ def train_model(args):
             for val_batch in val_dataloader:
                 val_batch = send_to_device(val_batch, params['pretraining']['train']["device"])
                 ############################
-                with autocast(device_type=params['pretraining']['train']["device"]):
+                with autocast():
                     _, _, gf = model(val_batch)
                     val_loss = contrastive_learning_loss(
                         gf,
@@ -195,15 +199,17 @@ def train_model(args):
             f"Validation Loss: {sum(val_losses)/len(val_losses)}"
         )
 
-        model.save(
-            f"./pretrain/encoder/saved_models"
-            f"/{params['project_name']}_pretrained_model"
-            f"_{params['model']['encoder']['dice']['gnn_type']}"
-            f"_depth{args.gnn_depth}_taup{tau_p}tau{tau}taun{tau_n}_epoch{epoch}.pt"
-        )
+        if epoch % 40 == 0:
+            model.save(
+                f"./pretrain/encoder/saved_models"
+                f"/{params['project_name']}_pretrained_model"
+                f"_{params['model']['encoder']['dice']['gnn_type']}"
+                f"_depth{args.gnn_depth}_taup{tau_p}tau{tau}taun{tau_n}_epoch{epoch}.pt"
+            )
 
     if args.wandb_log:
         wandb.finish()
+
 
     model.save(
         f"./pretrain/encoder/{params['project_name']}_pretrained_model"

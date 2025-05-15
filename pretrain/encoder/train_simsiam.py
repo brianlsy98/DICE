@@ -20,37 +20,28 @@ from dataloader import GraphDataLoader
 from model import DICE
 
 
-def contrastive_learning_loss(gf, gf_labels, tau):
+def simsiam_loss(gf, gf_labels, predictor):
     # -----------------------------------
     # Preprocess
     # -----------------------------------
-    
     graph_indices = sample_min_number_of_indices(gf_labels)
     graph_labels, graph_features = gf_labels[graph_indices], gf[graph_indices]
 
-                    # (same label & both pos label)
-    positive_mask =   (graph_labels.unsqueeze(1) == graph_labels.unsqueeze(0))\
-                    & ((graph_labels > 0).unsqueeze(1) & (graph_labels > 0).unsqueeze(0))
-
     # -----------------------------------
-    # Graph-level Contrastive Loss
-    # -----------------------------------
-    gf_n = F.normalize(graph_features, dim=-1)
-    gf_cosine_similarity = torch.mm(gf_n, gf_n.t())
-
-    gs_exp = torch.exp(gf_cosine_similarity)
-
-    gf_log_value_matrix = \
-        gf_cosine_similarity/tau - torch.log(
-            (gs_exp**(1/(tau))).sum(dim=1, keepdim=True)
-        )
-
-    gf_loss = - (gf_log_value_matrix * positive_mask.float()).sum()
-
-    if positive_mask.float().sum() != 0:
-        gf_loss /= positive_mask.float().sum()
-
-    return gf_loss
+    # SimSiam Loss
+    # -----------------------------------    
+    # projection, prediction
+    z, p = graph_features, predictor(graph_features)            # shape: [N, D]
+    # normalized z*p matrix
+    zp_normalized_matrix = torch.mm(F.normalize(z.detach(), dim=-1),
+                                    F.normalize(p, dim=-1).t()) # shape: [N, N]
+    # positive mask
+    positive_mask = (graph_labels.unsqueeze(1) == graph_labels.unsqueeze(0))
+                                                                # shape: [N, N]
+    # loss
+    loss = -zp_normalized_matrix[positive_mask].mean()
+    
+    return loss
 
 
 
@@ -68,12 +59,25 @@ def train_model(args):
 
     with open('./params.json', 'r') as f:
         params = json.load(f)
-    tau = f"{params['pretraining']['train']['tau']}".replace(".", "")
 
+    
     ########################
+    # simsiam predictor
+    simsiam_predictor = nn.Sequential(
+        nn.Linear(params['model']['encoder']['dice']['gf_out_dim'], params['model']['encoder']['dice']['hidden_dim']),
+        nn.BatchNorm1d(params['model']['encoder']['dice']['hidden_dim']),
+        nn.ReLU(),
+        nn.Linear(params['model']['encoder']['dice']['hidden_dim'], params['model']['encoder']['dice']['hidden_dim']),
+        nn.BatchNorm1d(params['model']['encoder']['dice']['hidden_dim']),
+        nn.ReLU(),
+        nn.Linear(params['model']['encoder']['dice']['hidden_dim'], params['model']['encoder']['dice']['gf_out_dim'])
+    ).to(params['pretraining']['train']["device"])
+    simsiam_predictor.apply(init_weights)
+    # DICE
     model = DICE(params['model']['encoder']['dice'], gnn_depth=args.gnn_depth)
     model.apply(init_weights)
-    model.optimizer = torch.optim.Adam(model.parameters(), lr=params['pretraining']['train']['lr'])
+    update_params = list(model.parameters()) + list(simsiam_predictor.parameters())
+    model.optimizer = torch.optim.Adam(update_params, lr=0.01*params['pretraining']['train']['lr'])
     model = model.to(params['pretraining']['train']["device"])
     ########################
     print()
@@ -90,7 +94,7 @@ def train_model(args):
             project=params['project_name'],
             name=(
                 f"dice_pretraining_{params['model']['encoder']['dice']['gnn_type']}"
-                f"_depth{args.gnn_depth}_tau{tau}_pda_seed{args.seed}"
+                f"_depth{args.gnn_depth}_simsiam_seed{args.seed}"
             ),
             config=config
         )
@@ -127,6 +131,7 @@ def train_model(args):
     print()
 
 
+
     ### Training
     scaler = GradScaler()
     for epoch in range(int(params['pretraining']['train']["epochs"])):
@@ -140,10 +145,10 @@ def train_model(args):
             model.optimizer.zero_grad()
             with autocast():
                 _, _, gf = model(train_batch)
-                train_loss = contrastive_learning_loss(
+                train_loss = simsiam_loss(
                     gf,
                     train_batch['circuit'],
-                    params['pretraining']['train']['tau']
+                    simsiam_predictor
                 )
             scaler.scale(train_loss).backward()
             scaler.step(model.optimizer)
@@ -160,10 +165,10 @@ def train_model(args):
                 ############################
                 with autocast():
                     _, _, gf = model(val_batch)
-                    val_loss = contrastive_learning_loss(
+                    val_loss = simsiam_loss(
                         gf,
                         val_batch['circuit'],
-                        params['pretraining']['train']['tau']
+                        simsiam_predictor
                     )
                 ############################
                 val_losses.append(val_loss.item())
@@ -186,7 +191,7 @@ def train_model(args):
                 f"./pretrain/encoder/saved_models"
                 f"/{params['project_name']}_pretrained_model"
                 f"_{params['model']['encoder']['dice']['gnn_type']}"
-                f"_depth{args.gnn_depth}_tau{tau}_pda_epoch{epoch}.pt"
+                f"_depth{args.gnn_depth}_simsiam_epoch{epoch}.pt"
             )
 
     if args.wandb_log:
@@ -195,7 +200,7 @@ def train_model(args):
     model.save(
         f"./pretrain/encoder/{params['project_name']}_pretrained_model"
         f"_{params['model']['encoder']['dice']['gnn_type']}"
-        f"_depth{args.gnn_depth}_tau{tau}_pda.pt"
+        f"_depth{args.gnn_depth}_simsiam.pt"
     )
 
 

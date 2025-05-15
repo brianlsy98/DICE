@@ -1,0 +1,15 @@
+* rlc_3
+
+.include './technology_files/45nm_bulk.txt'
+
+L0   vin   vout  'L0'
+R0   vout  vlc   'R0'
+C0   vlc   gnd   'C0'
+VIN  vin   gnd   'VIN'
+
+.control
+DC temp  25   25   1
+print gnd vin vout vlc
+.endc
+
+.end

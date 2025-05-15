@@ -167,14 +167,18 @@ def test(args):
                         f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
                         f"_sGNN{args.s_gnn_depth}_seed{args.trained_model_seed}"
     else:
-        if not args.pda:
+        if args.cl_type == 'nda':
             model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
                         f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
                         f"_sGNN{args.s_gnn_depth}_taup{taup}tau{tau}taun{taun}_seed{args.trained_model_seed}"
-        elif args.pda:
+        elif args.cl_type == 'pda':
             model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
                             f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
-                            f"_sGNN{args.s_gnn_depth}_taup{taup}tau{tau}taun{taun}_pda_seed{args.trained_model_seed}"
+                            f"_sGNN{args.s_gnn_depth}_tau{tau}_pda_seed{args.trained_model_seed}"
+        elif args.cl_type == 'simsiam':
+            model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
+                            f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
+                            f"_sGNN{args.s_gnn_depth}_simsiam_seed{args.trained_model_seed}"
     model.apply(init_weights)
     model.load(f"./downstream_tasks/{args.task_name}/saved_models/{model_name}.pt")
     model = model.to(params['downstream_tasks'][f'{args.task_name}']['test']['device'])
@@ -215,13 +219,13 @@ def test(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--task_name", type=str, default="circuit_similarity_prediction")
-    parser.add_argument("--dice_depth", type=int, default=0, help="depth for DICE")
+    parser.add_argument("--dice_depth", type=int, default=2, help="depth for DICE")
     parser.add_argument("--p_gnn_depth", type=int, default=0, help="depth for parallel GNN")
-    parser.add_argument("--s_gnn_depth", type=int, default=0, help="depth for series GNN")
+    parser.add_argument("--s_gnn_depth", type=int, default=2, help="depth for series GNN")
     parser.add_argument("--taup", type=str, default="0.2", help="taup value for DICE")
     parser.add_argument("--tau", type=str, default="0.05", help="tau value for DICE")
     parser.add_argument("--taun", type=str, default="0.05", help="taun value for DICE")
-    parser.add_argument("--pda", type=int, default=0, help="Only using positive data augmentation")
+    parser.add_argument("--cl_type", default='nda', choices=['nda', 'pda', 'simsiam'], help="NT-Xent vs SimSiam vs Ours")
     parser.add_argument("--trained_model_seed", type=int, default=0, help="Seed for trained model")
     parser.add_argument("--gpu", type=int, default=0, help="CUDA device index")
     parser.add_argument("--print_info", type=int, default=1, help="Print information")

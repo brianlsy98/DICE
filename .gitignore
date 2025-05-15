@@ -1,9 +1,7 @@
 __pycache__
 *.txt
-!requirements.txt
 *.pt
 wandb
-*_pda.py
 plots
+bsim4v5.out
 *_prev.py
-baselines

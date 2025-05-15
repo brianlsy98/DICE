@@ -93,11 +93,11 @@ def main(args):
 
     # Use a colormap that can comfortably handle up to 50 labels
     # Here, 'hsv' is used with 50 discrete bins. If you have more than 50 labels, colors will repeat.
-    max_colors = 55
+    max_colors = 15
     cmap = plt.get_cmap('hsv', max_colors)
 
     # Run t-SNE
-    print(f"\nGraph embeddings t-SNE (trained, taup{taup}, tau{tau}, taun{taun})...")
+    print(f"\nGraph embeddings t-SNE (trained, DICE, taup{taup}, tau{tau}, taun{taun})...")
     start = time.time()
     tsne = TSNE(n_components=2, random_state=98, perplexity=30, max_iter=1500)
     graph_embeddings_tsne_trained = tsne.fit_transform(trained_graph_embeddings)

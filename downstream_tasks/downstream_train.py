@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 import wandb
 
-from torch.amp import autocast, GradScaler
+from torch.cuda.amp import autocast, GradScaler
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
@@ -96,14 +96,18 @@ def train(args):
     model = DownstreamModel(args, params['model'])
     model.apply(init_weights)
     if args.dice_depth > 0:
-        if not args.pda:
+        if args.cl_type == 'nda':       # Ours
             model.load_dice(f"./pretrain/encoder/DICE_pretrained_model"
                             f"_{params['model']['encoder']['dice']['gnn_type']}"
                             f"_depth{args.dice_depth}_taup{taup}tau{tau}taun{tau_n}.pt")
-        elif args.pda:
+        elif args.cl_type == 'pda':     # NT-Xent
             model.load_dice(f"./pretrain/encoder/DICE_pretrained_model"
                             f"_{params['model']['encoder']['dice']['gnn_type']}"
-                            f"_depth{args.dice_depth}_taup{taup}tau{tau}taun{tau_n}_pda.pt")
+                            f"_depth{args.dice_depth}_tau{tau}_pda.pt")
+        elif args.cl_type == 'simsiam': # SimSiam
+            model.load_dice(f"./pretrain/encoder/DICE_pretrained_model"
+                            f"_{params['model']['encoder']['dice']['gnn_type']}"
+                            f"_depth{args.dice_depth}_simsiam.pt")
     model.optimizer = torch.optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()),  # only update trainable params
         lr=params['downstream_tasks'][f'{args.task_name}']['train']['lr']
@@ -119,14 +123,18 @@ def train(args):
                     f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
                     f"_sGNN{args.s_gnn_depth}_seed{args.seed}"
     else:
-        if not args.pda:
+        if args.cl_type == 'nda':
             model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
                         f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
                         f"_sGNN{args.s_gnn_depth}_taup{taup}tau{tau}taun{tau_n}_seed{args.seed}"
-        elif args.pda:
+        elif args.cl_type == 'pda':
             model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
                         f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
-                        f"_sGNN{args.s_gnn_depth}_taup{taup}tau{tau}taun{tau_n}_pda_seed{args.seed}"
+                        f"_sGNN{args.s_gnn_depth}_tau{tau}_pda_seed{args.seed}"
+        elif args.cl_type == 'simsiam':
+            model_name = f"{args.task_name}_{params['model']['encoder']['dice']['gnn_type']}"\
+                        f"_DICE{args.dice_depth}_pGNN{args.p_gnn_depth}"\
+                        f"_sGNN{args.s_gnn_depth}_simsiam_seed{args.seed}"
 
 
     ### Wandb Initialization
@@ -180,7 +188,7 @@ def train(args):
             train_batch = send_to_device(train_batch, params['downstream_tasks'][f'{args.task_name}']['train']["device"])
             ############################
             model.optimizer.zero_grad()
-            with autocast(device_type=params['downstream_tasks'][f'{args.task_name}']['train']['device']):
+            with autocast():
                 out = model(train_batch)
                 train_loss = calculate_downstream_loss(out, train_batch, args.task_name)
             scaler.scale(train_loss).backward()
@@ -195,7 +203,7 @@ def train(args):
             for val_batch in val_dataloader:
                 val_batch = send_to_device(val_batch, params['downstream_tasks'][f'{args.task_name}']['train']['device'])
                 ############################
-                with autocast(device_type=params['downstream_tasks'][f'{args.task_name}']['train']["device"]):
+                with autocast():
                     out = model(val_batch)
                     val_loss = calculate_downstream_loss(out, val_batch, args.task_name)
                 ############################
@@ -207,7 +215,7 @@ def train(args):
                 for acc_batch in acc_dataloader:
                     acc_batch = send_to_device(acc_batch, params['downstream_tasks'][f'{args.task_name}']['train']['device'])
                     ############################
-                    with autocast(device_type=params['downstream_tasks'][f'{args.task_name}']['train']["device"]):
+                    with autocast():
                         out = model(acc_batch)
                         accuracies.append(get_test_info(out, acc_batch, args.task_name))
                     ############################
@@ -250,13 +258,13 @@ def train(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--task_name", type=str, default="circuit_similarity_prediction")
-    parser.add_argument("--dice_depth", type=int, default=0, help="depth for DICE")
+    parser.add_argument("--dice_depth", type=int, default=2, help="depth for DICE")
     parser.add_argument("--p_gnn_depth", type=int, default=0, help="depth for Newly training parallel GNN")
-    parser.add_argument("--s_gnn_depth", type=int, default=0, help="depth for Newly training series GNN")
+    parser.add_argument("--s_gnn_depth", type=int, default=2, help="depth for Newly training series GNN")
     parser.add_argument("--taup", type=str, default="0.2", help="tau_p value for DICE")
     parser.add_argument("--tau", type=str, default="0.05", help="tau value for DICE")
     parser.add_argument("--taun", type=str, default="0.05", help="tau_n value for DICE")
-    parser.add_argument("--pda", type=int, default=0, help="Use only Positive Data Augmentation")
+    parser.add_argument("--cl_type", default='nda', choices=['nda', 'pda', 'simsiam'], help="NT-Xent vs SimSiam vs Ours")
     parser.add_argument("--wandb_log", default=0, type=int, help="Log to wandb")
     parser.add_argument("--seed", default=0, type=int, help="Seed for reproducibility")
     parser.add_argument("--gpu", type=int, default=0, help="CUDA device index")

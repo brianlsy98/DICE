@@ -1,0 +1,31 @@
+* Alfio_RAFFC_Pin_3 Amplifier
+
+.subckt alfio_raffc_pin_3_amp gnd vdd vinn vinp vout
+MP0 vout net050 vdd vdd pmos W=4e-06 L=1.3e-07
+MP1 net043 net013 vdd vdd pmos W=4e-06 L=1.3e-07
+MP2 net013 net050 vdd vdd pmos W=4e-06 L=1.3e-07
+MP3 net050 voutn vdd vdd pmos W=4e-06 L=1.3e-07
+MP4 voutn voutn vdd vdd pmos W=5e-06 L=1.3e-07
+MP5 net063 vinp net31 net31 pmos W=4e-06 L=1.3e-07
+MP6 dm_2 vinn net31 net31 pmos W=4e-06 L=1.3e-07
+MP7 net31 net1 vdd vdd pmos W=4e-06 L=1.3e-07
+MP8 vb3 net1 vdd vdd pmos W=4e-06 L=1.3e-07
+MP9 dm_1 net1 vdd vdd pmos W=4e-06 L=1.3e-07
+MP10 vb4 net1 vdd vdd pmos W=4e-06 L=1.3e-07
+MP11 net1 net1 vdd vdd pmos W=4e-06 L=1.3e-07
+MN0 net013 vb4 gnd gnd nmos W=2e-06 L=1.3e-07
+MN1 vout net043 gnd gnd nmos W=2e-06 L=1.3e-07
+MN2 net043 net043 gnd gnd nmos W=2e-06 L=1.3e-07
+MN3 dm_2 vb4 gnd gnd nmos W=3e-06 L=1.3e-07
+MN4 voutn vb3 dm_2 gnd nmos W=2e-06 L=1.3e-07
+MN5 net063 vb4 gnd gnd nmos W=2e-06 L=1.3e-07
+MN6 net050 vb3 net063 gnd nmos W=2e-06 L=1.3e-07
+MN7 net54 vb4 gnd gnd nmos W=2e-06 L=1.3e-07
+MN8 vb3 vb3 gnd gnd nmos W=3e-06 L=1.3e-07
+MN9 vb4 vb3 net54 gnd nmos W=4e-06 L=1.3e-07
+MN10 net56 vb4 gnd gnd nmos W=3e-06 L=1.3e-07
+MN11 dm_1 vb3 net56 gnd nmos W=2e-06 L=1.3e-07
+I0 net1 gnd 0.0002
+C0 net063 vout 2e-10
+C1 net050 net013 1e-10
+.ends alfio_raffc_pin_3_amp

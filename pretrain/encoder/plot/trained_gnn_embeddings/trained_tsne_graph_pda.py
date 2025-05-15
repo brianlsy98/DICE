@@ -39,16 +39,14 @@ def main(args):
     params_path = "./params.json"
     with open(params_path, 'r') as f:
         params = json.load(f)
-    taup = f"{args.taup}".replace(".", "")
     tau = f"{args.tau}".replace(".", "")
-    taun = f"{args.taun}".replace(".", "")
-
+    
     # Initialize and load the trained model
     model_params = params['model']['encoder']['dice']
     trained_encoder = DICE(model_params, args.gnn_depth)
     model_path = (
         f"./pretrain/encoder/{params['project_name']}_pretrained_model_"
-        f"{model_params['gnn_type']}_depth{args.gnn_depth}_taup{taup}tau{tau}taun{taun}_pda.pt"
+        f"{model_params['gnn_type']}_depth{args.gnn_depth}_tau{tau}_pda.pt"
     )
     trained_encoder.load(model_path)
     trained_encoder = trained_encoder.to('cuda')
@@ -93,11 +91,11 @@ def main(args):
 
     # Use a colormap that can comfortably handle up to 50 labels
     # Here, 'hsv' is used with 50 discrete bins. If you have more than 50 labels, colors will repeat.
-    max_colors = 55
+    max_colors = 15
     cmap = plt.get_cmap('hsv', max_colors)
 
     # Run t-SNE
-    print(f"\nGraph embeddings t-SNE (trained, taup{taup}, tau{tau}, taun{taun}, pda)...")
+    print(f"\nGraph embeddings t-SNE (trained, tau{tau} pda)...")
     start = time.time()
     tsne = TSNE(n_components=2, random_state=98, perplexity=30, max_iter=1500)
     graph_embeddings_tsne_trained = tsne.fit_transform(trained_graph_embeddings)
@@ -129,7 +127,7 @@ def main(args):
     # ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 
     # Save and show the plot
-    plot_path = f"./pretrain/encoder/plot/trained_gnn_embeddings/tsne_trained_{model_params['gnn_type']}_depth{args.gnn_depth}_taup{taup}tau{tau}taun{taun}_pda_gf.png"
+    plot_path = f"./pretrain/encoder/plot/trained_gnn_embeddings/tsne_trained_{model_params['gnn_type']}_depth{args.gnn_depth}_tau{tau}_pda_gf.png"
     plt.tight_layout()
     plt.xticks(visible=False)
     plt.yticks(visible=False)
