@@ -241,10 +241,9 @@ class GraphDataLoader:
         return batch_data
 
 
-if __name__ == "__main__":
-    # Example usage
 
-    # Create some sample graphs
+if __name__ == "__main__":
+    
     graph_list = []
 
     for i in range(5):
