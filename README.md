@@ -122,7 +122,8 @@ Calculates the cosine similarities between graph-level features from the pretrai
 
 ### Prepare Downstream Dataset
 ```bash
-python downstream_tasks/save_dataset_downstream.py --task_name="circuit_similarity_prediction"
+python downstream_tasks/save_dataset_downstream.py \
+    --task_name="circuit_similarity_prediction"
 ```
 - `--task_name`: downstream tasks (circuit_similarity_prediction, delay_prediction, opamp_metric_prediction).
 
@@ -171,7 +172,9 @@ Test DeepGen_p (node-level prediction task).
 
 ### Prepare Downstream Task Dataset for all Baselines
 ```bash
-python baselines/save_dataset_baseline_downstream.py --baseline_name="ParaGraph" --task_name="delay_prediction"
+python baselines/save_dataset_baseline_downstream.py \
+    --baseline_name="ParaGraph"\
+    --task_name="delay_prediction"
 ```
 - `--baseline_name`: baseline models (ParaGraph, DeepGen).
 - `--task_name`: downstream tasks (circuit_similarity_prediction, delay_prediction, opamp_metric_prediction).
